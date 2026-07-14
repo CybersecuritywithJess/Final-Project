@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Administration — Audit Tracking System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+
+  <main class="ml-60 p-8">
+    <header class="mb-6">
+      <h1 class="text-2xl font-bold">Administration</h1>
+      <p class="mt-1 text-sm text-slate-500">
+        Everything you do on this page is recorded as a high-risk audit event.
+      </p>
+    </header>
+
+    <div class="mb-6 flex gap-2" id="tabs"></div>
+    <div id="content"></div>
+  </main>
+
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    const content = document.getElementById('content');
+    const TABS = [
+      ['users', 'Users'],
+      ['rules', 'Risk thresholds'],
+      ['health', 'System health'],
+    ];
+    let tab = 'users';
+
+    async function init() {
+      const user = await mountShell('/admin.html', ['admin']);
+      if (!user) return;
+
+      renderTabs();
+      await load();
+    }
+
+    function renderTabs() {
+      document.getElementById('tabs').innerHTML = TABS.map(([key, label]) => {
+        const active = key === tab;
+        return `<button data-tab="${key}"
+                        class="tab rounded-lg px-3 py-1.5 text-sm font-medium transition
+                               ${active
+                                 ? 'bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/30'
+                                 : 'text-slate-400 ring-1 ring-slate-800 hover:bg-slate-800 hover:text-slate-200'}">
+                  ${label}
+                </button>`;
+      }).join('');
+
+      document.querySelectorAll('.tab').forEach((button) => {
+        button.addEventListener('click', () => {
+          tab = button.dataset.tab;
+          renderTabs();
+          load();
+        });
+      });
+    }
+
+    async function load() {
+      loading(content);
+      if (tab === 'users') return renderUsers();
+      if (tab === 'rules') return renderRules();
+      if (tab === 'health') return renderHealth();
+    }
+
+    // ------------------------------------------------------------------ users
+
+    async function renderUsers() {
+      const { users } = await API.get('admin.php?action=users');
+
+      content.innerHTML = `
+        <div class="mb-4 flex justify-end">
+          <button id="new-user" class="rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-sky-500">
+            + New user
+          </button>
+        </div>
+
+        <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+          <table class="w-full text-sm">
+            <thead class="border-b border-slate-800 bg-slate-900/50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th class="px-4 py-3 font-medium">User</th>
+                <th class="px-4 py-3 font-medium">Role</th>
+                <th class="px-4 py-3 font-medium">Status</th>
+                <th class="px-4 py-3 font-medium text-right">Balance</th>
+                <th class="px-4 py-3 font-medium text-right">Risk</th>
+                <th class="px-4 py-3 font-medium">Last login</th>
+                <th class="px-4 py-3 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800">
+              ${users.map(userRow).join('')}
+            </tbody>
+          </table>
+        </div>`;
+
+      document.getElementById('new-user').addEventListener('click', showNewUserForm);
+
+      document.querySelectorAll('[data-unlock]').forEach((b) =>
+        b.addEventListener('click', () => updateUser(b.dataset.unlock, { status: 'active' }, 'Account unlocked.')));
+
+      document.querySelectorAll('[data-lock]').forEach((b) =>
+        b.addEventListener('click', () => updateUser(b.dataset.lock, { status: 'locked' }, 'Account locked.')));
+
+      document.querySelectorAll('[data-delete]').forEach((b) =>
+        b.addEventListener('click', () => deleteUser(b.dataset.delete, b.dataset.username)));
+    }
+
+    function userRow(u) {
+      const risk = Number(u.risk_score);
+      const riskColor = risk >= 95 ? 'rose' : risk >= 70 ? 'orange' : risk >= 40 ? 'amber' : 'emerald';
+
+      return `
+        <tr class="transition hover:bg-slate-800/50">
+          <td class="px-4 py-3">
+            <p class="font-medium text-slate-200">${esc(u.full_name)}</p>
+            <p class="text-xs text-slate-600">@${esc(u.username)} · ${esc(u.email)}</p>
+          </td>
+          <td class="px-4 py-3">
+            <span class="rounded-full bg-slate-800 px-2 py-0.5 text-xs capitalize text-slate-400">${u.role}</span>
+          </td>
+          <td class="px-4 py-3">${statusBadge(u.status)}</td>
+          <td class="px-4 py-3 text-right text-slate-300">${u.role === 'customer' ? fmt.money(u.total_balance) : '—'}</td>
+          <td class="px-4 py-3 text-right">
+            <span class="font-semibold text-${riskColor}-400">${risk}</span>
+          </td>
+          <td class="px-4 py-3 text-xs text-slate-500">${u.last_login_at ? fmt.ago(u.last_login_at) : 'never'}</td>
+          <td class="px-4 py-3">
+            <div class="flex justify-end gap-1.5">
+              ${u.role === 'customer'
+                ? `<a href="/timeline.html?user=${u.id}"
+                      class="rounded-md px-2 py-1 text-xs text-sky-400 transition hover:bg-slate-800">Timeline</a>` : ''}
+              ${u.status === 'locked'
+                ? `<button data-unlock="${u.id}"
+                           class="rounded-md px-2 py-1 text-xs text-emerald-400 transition hover:bg-slate-800">Unlock</button>`
+                : `<button data-lock="${u.id}"
+                           class="rounded-md px-2 py-1 text-xs text-amber-400 transition hover:bg-slate-800">Lock</button>`}
+              <button data-delete="${u.id}" data-username="${esc(u.username)}"
+                      class="rounded-md px-2 py-1 text-xs text-rose-400 transition hover:bg-slate-800">Delete</button>
+            </div>
+          </td>
+        </tr>`;
+    }
+
+    async function updateUser(id, changes, message) {
+      try {
+        await API.patch('admin.php?action=user', changes, { id });
+        toast(message, 'success');
+        await load();
+      } catch (error) {
+        toast(esc(error.message), 'error');
+      }
+    }
+
+    async function deleteUser(id, username) {
+      // Deleting is irreversible, so make them mean it.
+      if (!confirm(`Delete "${username}"?\n\nTheir accounts and transactions go with them. The audit trail of what they did survives.`)) {
+        return;
+      }
+
+      try {
+        await API.del('admin.php?action=user', { id });
+        toast('User deleted. A CRITICAL audit event was recorded.', 'alert');
+        await load();
+      } catch (error) {
+        toast(esc(error.message), 'error');
+      }
+    }
+
+    function showNewUserForm() {
+      const html = `
+        <div id="modal" class="fixed inset-0 z-40 flex items-center justify-center p-6">
+          <div class="absolute inset-0 bg-slate-950/70" id="modal-backdrop"></div>
+          <form id="user-form" class="relative w-full max-w-sm space-y-3 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <h2 class="text-lg font-bold">New user</h2>
+            <input id="n-full_name" required placeholder="Full name" class="${INPUT}" />
+            <input id="n-username" required placeholder="Username" class="${INPUT}" />
+            <input id="n-email" type="email" required placeholder="Email" class="${INPUT}" />
+            <input id="n-phone" placeholder="Phone (optional)" class="${INPUT}" />
+            <input id="n-password" type="password" required placeholder="Password (8+ characters)" class="${INPUT}" />
+            <select id="n-role" class="${INPUT}">
+              <option value="customer">Customer</option>
+              <option value="auditor">Auditor</option>
+              <option value="admin">Administrator</option>
+            </select>
+            <div class="flex gap-2 pt-2">
+              <button type="submit" class="flex-1 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500">
+                Create
+              </button>
+              <button type="button" id="modal-cancel"
+                      class="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-400 transition hover:bg-slate-800">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>`;
+
+      document.body.insertAdjacentHTML('beforeend', html);
+
+      const close = () => document.getElementById('modal').remove();
+      document.getElementById('modal-cancel').addEventListener('click', close);
+      document.getElementById('modal-backdrop').addEventListener('click', close);
+
+      document.getElementById('user-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        try {
+          await API.post('admin.php?action=users', {
+            full_name: document.getElementById('n-full_name').value.trim(),
+            username: document.getElementById('n-username').value.trim(),
+            email: document.getElementById('n-email').value.trim(),
+            phone: document.getElementById('n-phone').value.trim(),
+            password: document.getElementById('n-password').value,
+            role: document.getElementById('n-role').value,
+          });
+          close();
+          toast('User created.', 'success');
+          await load();
+        } catch (error) {
+          toast(esc(error.message), 'error');
+        }
+      });
+    }
+
+    const INPUT = 'w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm ' +
+                  'placeholder-slate-600 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500';
+
+    // ------------------------------------------------------------------ rules
+
+    async function renderRules() {
+      const { rules } = await API.get('admin.php?action=rules');
+
+      content.innerHTML = `
+        <p class="mb-4 max-w-2xl text-sm text-slate-500">
+          The fraud rules read these numbers at detection time — change one and the
+          engine behaves differently on the very next transaction. No redeploy, no code edit.
+        </p>
+
+        <div class="space-y-3">
+          ${rules.map(ruleCard).join('')}
+        </div>`;
+
+      document.querySelectorAll('form[data-rule]').forEach((form) => {
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const key = form.dataset.rule;
+          const value = form.querySelector('input').value;
+
+          try {
+            await API.patch('admin.php?action=rule', { value }, { key });
+            toast('Threshold updated. The change was logged.', 'success');
+            await load();
+          } catch (error) {
+            toast(esc(error.message), 'error');
+          }
+        });
+      });
+    }
+
+    function ruleCard(r) {
+      return `
+        <form data-rule="${r.rule_key}" class="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-slate-200">${esc(r.label)}</p>
+            <p class="mt-0.5 text-xs text-slate-500">${esc(r.description)}</p>
+            <p class="mt-1 font-mono text-[11px] text-slate-700">${r.rule_key}</p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <input type="number" step="any" min="0" value="${Number(r.value)}"
+                   class="w-32 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-right text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+            <span class="w-16 text-xs text-slate-500">${esc(r.unit || '')}</span>
+            <button type="submit"
+                    class="rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700">
+              Save
+            </button>
+          </div>
+        </form>`;
+    }
+
+    // ----------------------------------------------------------------- health
+
+    async function renderHealth() {
+      const [h, a] = await Promise.all([
+        API.get('admin.php?action=health'),
+        API.get('admin.php?action=analytics'),
+      ]);
+
+      content.innerHTML = `
+        <div class="grid gap-6 lg:grid-cols-2">
+
+          <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+            <h2 class="mb-4 text-sm font-semibold text-slate-200">System health</h2>
+            <dl class="space-y-0 divide-y divide-slate-800 text-sm">
+              ${row('Database', `<span class="text-emerald-400">● ${h.database.status}</span>`)}
+              ${row('Engine', esc(h.database.engine))}
+              ${row('Version', esc(h.database.version))}
+              ${row('Database size', (h.database.size_bytes / 1024).toFixed(0) + ' KB')}
+              ${row('PHP', esc(h.server.php_version))}
+              ${row('Memory', h.server.memory_mb + ' MB')}
+              ${row('Active sessions', fmt.number(h.active_sessions))}
+            </dl>
+          </section>
+
+          <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+            <h2 class="mb-4 text-sm font-semibold text-slate-200">Table sizes</h2>
+            <dl class="space-y-0 divide-y divide-slate-800 text-sm">
+              ${Object.entries(h.tables).map(([table, count]) =>
+                row(fmt.label(table), fmt.number(count))).join('')}
+            </dl>
+          </section>
+
+          <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+            <h2 class="mb-4 text-sm font-semibold text-slate-200">Money moved</h2>
+            <dl class="space-y-0 divide-y divide-slate-800 text-sm">
+              ${row('Deposits', fmt.money(a.totals.deposits))}
+              ${row('Withdrawals', fmt.money(a.totals.withdrawals))}
+              ${row('Transfers', fmt.money(a.totals.transfers))}
+            </dl>
+          </section>
+
+          <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+            <h2 class="mb-4 text-sm font-semibold text-slate-200">Which rules are firing</h2>
+            ${a.alerts_by_rule.length === 0
+              ? `<p class="text-sm text-slate-600">No alerts raised yet.</p>`
+              : `<dl class="space-y-0 divide-y divide-slate-800 text-sm">
+                   ${a.alerts_by_rule.map((r) => row(
+                     `<code class="text-xs">${r.rule_key}</code>`,
+                     `${r.count} raised · <span class="text-slate-500">${r.false_positives} false</span>`,
+                   )).join('')}
+                 </dl>`}
+          </section>
+        </div>`;
+    }
+
+    function row(label, value) {
+      return `
+        <div class="flex justify-between gap-4 py-2.5">
+          <dt class="text-slate-500">${label}</dt>
+          <dd class="text-right text-slate-300">${value}</dd>
+        </div>`;
+    }
+
+    init();
+  </script>
+</body>
+</html>

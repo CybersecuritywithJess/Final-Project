@@ -1,0 +1,13 @@
+{
+  "editor.formatOnSave": true,
+  "editor.tabSize": 4,
+  "files.eol": "\n",
+  "[html]": { "editor.tabSize": 2 },
+  "[javascript]": { "editor.tabSize": 2 },
+  "[json]": { "editor.tabSize": 2 },
+  "php.validate.executablePath": "C:\\xampp\\php\\php.exe",
+  "intelephense.environment.phpVersion": "8.2.0",
+  "emmet.includeLanguages": { "php": "html" },
+  "tailwindCSS.includeLanguages": { "php": "html" },
+  "files.associations": { "*.php": "php" }
+}

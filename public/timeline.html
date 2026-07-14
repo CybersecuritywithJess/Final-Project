@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customer Timeline — Audit Tracking System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+
+  <main class="ml-60 p-8">
+    <a href="/dashboard.html" class="mb-6 inline-block text-sm text-slate-500 transition hover:text-slate-300">
+      ← Back to dashboard
+    </a>
+    <div id="content"></div>
+  </main>
+
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    const content = document.getElementById('content');
+    const userId = new URLSearchParams(location.search).get('user');
+
+    async function init() {
+      const user = await mountShell('/timeline.html', ['auditor', 'admin']);
+      if (!user) return;
+
+      if (!userId) {
+        window.location.href = '/dashboard.html';
+        return;
+      }
+
+      loading(content, 'Reconstructing the timeline…');
+      const data = await API.get('audit.php?action=timeline', { user: userId });
+      render(data);
+    }
+
+    function render(d) {
+      const u = d.user;
+      const riskColor = d.risk_score >= 95 ? 'rose'
+                      : d.risk_score >= 70 ? 'orange'
+                      : d.risk_score >= 40 ? 'amber' : 'emerald';
+
+      // Newest first reads better for an investigator arriving at a case.
+      const events = [...d.events].reverse();
+
+      content.innerHTML = `
+        <header class="mb-8">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 class="text-2xl font-bold">${esc(u.full_name)}</h1>
+              <p class="mt-1 text-sm text-slate-500">
+                @${esc(u.username)} · ${esc(u.email)} ${u.phone ? `· ${esc(u.phone)}` : ''}
+              </p>
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                ${statusBadge(u.status)}
+                <span class="rounded-full bg-slate-800 px-2 py-0.5 text-xs capitalize text-slate-400">${u.role}</span>
+                <span class="text-xs text-slate-600">Customer since ${fmt.date(u.created_at)}</span>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-${riskColor}-500/20 bg-${riskColor}-500/5 px-6 py-4 text-center">
+              <p class="text-xs font-medium uppercase tracking-wide text-${riskColor}-400">Risk score</p>
+              <p class="mt-1 text-3xl font-bold text-${riskColor}-400">${d.risk_score}</p>
+              <p class="text-[11px] text-slate-600">peak, last 30 days</p>
+            </div>
+          </div>
+        </header>
+
+        <div class="grid gap-6 lg:grid-cols-3">
+
+          <!-- Timeline -->
+          <section class="lg:col-span-2">
+            <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Activity timeline (${events.length} events)
+            </h2>
+
+            <div class="relative space-y-1 border-l border-slate-800 pl-6">
+              ${events.map(timelineRow).join('')}
+            </div>
+          </section>
+
+          <!-- Sidebar -->
+          <aside class="space-y-6">
+
+            <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+              <h2 class="mb-4 text-sm font-semibold text-slate-200">Accounts</h2>
+              <div class="space-y-3">
+                ${d.accounts.map((a) => `
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <p class="text-sm capitalize text-slate-300">${a.type}</p>
+                      <p class="font-mono text-xs text-slate-600">${a.account_number}</p>
+                    </div>
+                    <p class="text-sm font-semibold text-slate-200">${fmt.money(a.balance)}</p>
+                  </div>`).join('')}
+              </div>
+            </section>
+
+            <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+              <h2 class="mb-4 text-sm font-semibold text-slate-200">
+                Alerts (${d.alerts.length})
+              </h2>
+              ${d.alerts.length === 0
+                ? `<p class="text-sm text-slate-600">Nothing raised against this customer.</p>`
+                : `<div class="space-y-2">
+                     ${d.alerts.map((a) => `
+                       <a href="/alert.html?id=${a.id}"
+                          class="block rounded-lg border border-slate-800 p-3 transition hover:bg-slate-800">
+                         <div class="mb-1 flex items-center gap-2">
+                           ${riskBadge(a.risk_level)}
+                           ${statusBadge(a.status)}
+                         </div>
+                         <p class="text-sm text-slate-300">${esc(a.title)}</p>
+                         <p class="mt-0.5 text-xs text-slate-600">${fmt.ago(a.created_at)}</p>
+                       </a>`).join('')}
+                   </div>`}
+            </section>
+
+            <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+              <h2 class="mb-4 text-sm font-semibold text-slate-200">
+                Known devices (${d.devices.length})
+              </h2>
+              ${d.devices.length === 0
+                ? `<p class="text-sm text-slate-600">No devices recorded.</p>`
+                : `<div class="space-y-3">
+                     ${d.devices.map((dev) => `
+                       <div class="text-sm">
+                         <p class="text-slate-300">${esc(dev.browser)} on ${esc(dev.os)}</p>
+                         <p class="text-xs text-slate-600">
+                           ${esc(dev.device_type)} · ${esc(dev.last_ip)} · ${esc(dev.last_country)}
+                         </p>
+                         <p class="text-xs text-slate-700">Last seen ${fmt.ago(dev.last_seen)}</p>
+                       </div>`).join('')}
+                   </div>`}
+            </section>
+          </aside>
+        </div>`;
+    }
+
+    function timelineRow(e) {
+      const dot = {
+        CRITICAL: 'bg-rose-500',
+        HIGH: 'bg-orange-500',
+        MEDIUM: 'bg-amber-500',
+        LOW: 'bg-slate-600',
+      }[e.risk_level];
+
+      // Anything above LOW deserves to stand out when scrolling a long history.
+      const emphasis = e.risk_level === 'LOW'
+        ? 'text-slate-400'
+        : 'text-slate-200 font-medium';
+
+      return `
+        <div class="relative py-2.5">
+          <span class="absolute -left-[31px] top-4 h-2.5 w-2.5 rounded-full ${dot} ring-4 ring-slate-950"></span>
+
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+              <p class="text-sm ${emphasis}">${esc(e.description)}</p>
+              <p class="mt-0.5 text-xs text-slate-600">
+                <span class="font-mono">${e.audit_ref}</span>
+                · ${esc(e.city || '')}, ${esc(e.country || '')}
+                · ${esc(e.ip_address || '')}
+                ${e.browser ? ` · ${esc(e.browser)}` : ''}
+              </p>
+            </div>
+            <div class="shrink-0 text-right">
+              <p class="text-xs text-slate-500">${fmt.dateTime(e.created_at)}</p>
+              ${e.risk_level !== 'LOW' ? `<div class="mt-1">${riskBadge(e.risk_level)}</div>` : ''}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    init();
+  </script>
+</body>
+</html>

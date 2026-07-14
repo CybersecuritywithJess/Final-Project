@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Financial Audit Tracking System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+
+  <div class="flex min-h-screen items-center justify-center">
+    <div class="text-center">
+      <div class="mb-4 text-4xl">🛡️</div>
+      <div class="mx-auto h-5 w-5 animate-spin rounded-full border-2 border-slate-800 border-t-sky-400"></div>
+    </div>
+  </div>
+
+  <script src="/assets/js/api.js"></script>
+  <script>
+    // Send people wherever their role belongs, or to the login page.
+    API.me()
+      .then(({ user }) => {
+        window.location.replace(user.role === 'customer' ? '/bank.html' : '/dashboard.html');
+      })
+      .catch(() => window.location.replace('/login.html'));
+  </script>
+</body>
+</html>

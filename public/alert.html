@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Investigation — Audit Tracking System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+
+  <main class="ml-60 p-8">
+    <a href="/alerts.html" class="mb-6 inline-block text-sm text-slate-500 transition hover:text-slate-300">
+      ← Back to alerts
+    </a>
+    <div id="content"></div>
+  </main>
+
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    const content = document.getElementById('content');
+    const alertId = new URLSearchParams(location.search).get('id');
+
+    const STATUSES = [
+      ['new', 'New'],
+      ['under_investigation', 'Under investigation'],
+      ['confirmed_fraud', 'Confirmed fraud'],
+      ['false_positive', 'False positive'],
+      ['resolved', 'Resolved'],
+      ['closed', 'Closed'],
+    ];
+
+    async function init() {
+      const user = await mountShell('/alert.html', ['auditor', 'admin']);
+      if (!user) return;
+
+      if (!alertId) {
+        window.location.href = '/alerts.html';
+        return;
+      }
+
+      await load();
+    }
+
+    async function load() {
+      loading(content);
+      const { alert: a, notes } = await API.get('audit.php?action=alert', { id: alertId });
+      render(a, notes);
+    }
+
+    function render(a, notes) {
+      content.innerHTML = `
+        <header class="mb-6">
+          <div class="mb-2 flex flex-wrap items-center gap-2">
+            ${riskBadge(a.risk_level)}
+            ${statusBadge(a.status)}
+            <span class="font-mono text-xs text-slate-600">${a.alert_ref}</span>
+          </div>
+          <h1 class="text-2xl font-bold">${esc(a.title)}</h1>
+          <p class="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">${esc(a.description)}</p>
+        </header>
+
+        <div class="grid gap-6 lg:grid-cols-3">
+
+          <!-- Case detail + workflow -->
+          <div class="space-y-6 lg:col-span-2">
+
+            <!-- Workflow -->
+            <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+              <h2 class="mb-1 text-sm font-semibold text-slate-200">Investigation status</h2>
+              <p class="mb-4 text-xs text-slate-500">
+                Changing this is recorded against your name in the audit log.
+              </p>
+              <div class="flex flex-wrap gap-2">
+                ${STATUSES.map(([value, label]) => {
+                  const active = a.status === value;
+                  return `<button data-status="${value}"
+                                  class="status-btn rounded-lg px-3 py-1.5 text-sm font-medium transition
+                                         ${active
+                                           ? 'bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/30'
+                                           : 'text-slate-400 ring-1 ring-slate-800 hover:bg-slate-800 hover:text-slate-200'}">
+                            ${label}
+                          </button>`;
+                }).join('')}
+              </div>
+            </section>
+
+            <!-- Add a note -->
+            <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+              <h2 class="mb-4 text-sm font-semibold text-slate-200">Add an investigation note</h2>
+              <form id="note-form" class="space-y-3">
+                <div>
+                  <label class="mb-1.5 block text-xs font-medium text-slate-400">Finding</label>
+                  <textarea id="finding" rows="3" required
+                            placeholder="What did you find? e.g. Contacted the customer; he confirmed he was travelling."
+                            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-600 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"></textarea>
+                </div>
+                <div>
+                  <label class="mb-1.5 block text-xs font-medium text-slate-400">Recommendation</label>
+                  <textarea id="recommendation" rows="2"
+                            placeholder="What should happen next? e.g. Require MFA on the account."
+                            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-600 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"></textarea>
+                </div>
+                <button type="submit" id="note-btn"
+                        class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50">
+                  Save note
+                </button>
+              </form>
+            </section>
+
+            <!-- Notes -->
+            <section>
+              <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Investigation notes (${notes.length})
+              </h2>
+              ${notes.length === 0
+                ? `<div class="rounded-xl border border-slate-800 bg-slate-900 p-8 text-center">
+                     <p class="text-sm text-slate-600">Nothing recorded yet.</p>
+                   </div>`
+                : `<div class="space-y-3">${notes.map(noteCard).join('')}</div>`}
+            </section>
+          </div>
+
+          <!-- Sidebar -->
+          <aside class="space-y-6">
+            <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+              <h2 class="mb-4 text-sm font-semibold text-slate-200">Case detail</h2>
+              <dl class="space-y-0 divide-y divide-slate-800 text-sm">
+                ${detail('Rule', `<code class="text-xs text-slate-400">${a.rule_key}</code>`)}
+                ${detail('Raised', fmt.dateTime(a.created_at))}
+                ${detail('Updated', fmt.dateTime(a.updated_at))}
+                ${a.audit_ref ? detail('Audit event', `<a href="/audits.html?search=${a.audit_ref}" class="font-mono text-xs text-sky-400 hover:text-sky-300">${a.audit_ref}</a>`) : ''}
+              </dl>
+            </section>
+
+            ${a.username ? `
+              <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <h2 class="mb-4 text-sm font-semibold text-slate-200">Customer</h2>
+                <p class="text-sm font-medium text-slate-200">${esc(a.full_name)}</p>
+                <p class="text-xs text-slate-500">@${esc(a.username)}</p>
+                <p class="mt-1 text-xs text-slate-500">${esc(a.email)}</p>
+                <a href="/timeline.html?user=${a.customer_id}"
+                   class="mt-4 block rounded-lg bg-slate-800 px-3 py-2 text-center text-sm font-medium text-slate-200 transition hover:bg-slate-700">
+                  View full timeline →
+                </a>
+              </section>` : ''}
+          </aside>
+        </div>`;
+
+      wire();
+    }
+
+    function noteCard(n) {
+      return `
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <div class="mb-3 flex items-center justify-between">
+            <span class="text-sm font-medium text-slate-300">${esc(n.auditor_name || 'Unknown auditor')}</span>
+            <span class="text-xs text-slate-600">${fmt.dateTime(n.created_at)}</span>
+          </div>
+          <div class="space-y-3 text-sm">
+            <div>
+              <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">Finding</p>
+              <p class="leading-relaxed text-slate-300">${esc(n.finding)}</p>
+            </div>
+            ${n.recommendation ? `
+              <div>
+                <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">Recommendation</p>
+                <p class="leading-relaxed text-slate-400">${esc(n.recommendation)}</p>
+              </div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    function detail(label, value) {
+      return `
+        <div class="flex justify-between gap-4 py-2.5">
+          <dt class="shrink-0 text-slate-500">${label}</dt>
+          <dd class="text-right text-slate-300">${value}</dd>
+        </div>`;
+    }
+
+    function wire() {
+      document.querySelectorAll('.status-btn').forEach((button) => {
+        button.addEventListener('click', async () => {
+          try {
+            await API.patch('audit.php?action=alert-status', { status: button.dataset.status }, { id: alertId });
+            toast('Status updated. Your change was logged.', 'success');
+            await load();
+          } catch (error) {
+            toast(esc(error.message), 'error');
+          }
+        });
+      });
+
+      document.getElementById('note-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const button = document.getElementById('note-btn');
+        button.disabled = true;
+        button.textContent = 'Saving…';
+
+        try {
+          await API.post('audit.php?action=alert-note', {
+            finding: document.getElementById('finding').value,
+            recommendation: document.getElementById('recommendation').value,
+          }, { id: alertId });
+
+          toast('Note saved.', 'success');
+          await load();
+        } catch (error) {
+          toast(esc(error.message), 'error');
+          button.disabled = false;
+          button.textContent = 'Save note';
+        }
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

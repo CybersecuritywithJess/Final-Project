@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Bank — Demo Bank</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+
+  <main class="ml-60 p-8">
+    <header class="mb-8">
+      <h1 class="text-2xl font-bold">My Bank</h1>
+      <p class="mt-1 text-sm text-slate-500">
+        Every action you take here is recorded by the audit system.
+      </p>
+    </header>
+
+    <div id="content"></div>
+  </main>
+
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    const content = document.getElementById('content');
+    let accounts = [];
+
+    async function init() {
+      const user = await mountShell('/bank.html', ['customer', 'admin']);
+      if (!user) return;
+      loading(content);
+      await refresh();
+    }
+
+    async function refresh() {
+      const [accountData, txnData] = await Promise.all([
+        API.get('bank.php?action=accounts'),
+        API.get('bank.php?action=transactions', { limit: 12 }),
+      ]);
+
+      accounts = accountData.accounts;
+      render(accounts, txnData.transactions);
+    }
+
+    function render(accounts, transactions) {
+      const checking = accounts.find((a) => a.type === 'checking');
+      const savings = accounts.find((a) => a.type === 'savings');
+
+      content.innerHTML = `
+        <!-- Balances -->
+        <div class="mb-8 grid gap-4 sm:grid-cols-2">
+          ${accountCard('Checking', checking, 'sky')}
+          ${accountCard('Savings', savings, 'violet')}
+        </div>
+
+        <div class="grid gap-8 lg:grid-cols-5">
+
+          <!-- Actions -->
+          <section class="lg:col-span-2 space-y-4">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Move money</h2>
+
+            ${actionCard('deposit', 'Deposit', 'Add funds to an account', `
+              <input type="number" id="deposit-amount" placeholder="Amount" min="1" step="any" class="${INPUT}" />
+              <select id="deposit-account" class="${INPUT}">
+                <option value="checking">Checking</option>
+                <option value="savings">Savings</option>
+              </select>
+            `, 'emerald')}
+
+            ${actionCard('withdraw', 'Withdraw', 'Large withdrawals get flagged', `
+              <input type="number" id="withdraw-amount" placeholder="Amount" min="1" step="any" class="${INPUT}" />
+              <select id="withdraw-account" class="${INPUT}">
+                <option value="checking">Checking</option>
+                <option value="savings">Savings</option>
+              </select>
+              <p class="text-xs text-slate-600">Try 600,000 to trip the fraud engine.</p>
+            `, 'amber')}
+
+            ${actionCard('transfer', 'Transfer', 'Send to another account', `
+              <input type="number" id="transfer-amount" placeholder="Amount" min="1" step="any" class="${INPUT}" />
+              <input id="transfer-to" placeholder="Recipient account number" class="${INPUT}" />
+              <p class="text-xs text-slate-600">Several in a row looks like structuring.</p>
+            `, 'sky')}
+
+            ${actionCard('pay', 'Pay a bill', 'Utilities and airtime', `
+              <input type="number" id="pay-amount" placeholder="Amount" min="1" step="any" class="${INPUT}" />
+              <input id="pay-biller" placeholder="Biller (e.g. KPLC Prepaid)" class="${INPUT}" />
+              <select id="pay-kind" class="${INPUT}">
+                <option value="bill_payment">Bill payment</option>
+                <option value="airtime">Airtime</option>
+              </select>
+            `, 'violet')}
+          </section>
+
+          <!-- Statement -->
+          <section class="lg:col-span-3">
+            <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Recent transactions
+            </h2>
+            <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+              ${transactions.length === 0
+                ? `<p class="p-8 text-center text-sm text-slate-600">No transactions yet.</p>`
+                : `<table class="w-full text-sm">
+                     <thead class="border-b border-slate-800 bg-slate-900/50 text-left text-xs uppercase tracking-wide text-slate-500">
+                       <tr>
+                         <th class="px-4 py-3 font-medium">Reference</th>
+                         <th class="px-4 py-3 font-medium">Type</th>
+                         <th class="px-4 py-3 font-medium text-right">Amount</th>
+                         <th class="px-4 py-3 font-medium">Status</th>
+                         <th class="px-4 py-3 font-medium">When</th>
+                       </tr>
+                     </thead>
+                     <tbody class="divide-y divide-slate-800">
+                       ${transactions.map(txnRow).join('')}
+                     </tbody>
+                   </table>`}
+            </div>
+          </section>
+        </div>`;
+
+      wireActions();
+    }
+
+    const INPUT = 'w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm ' +
+                  'text-slate-100 placeholder-slate-600 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500';
+
+    function accountCard(title, account, color) {
+      if (!account) return '';
+      return `
+        <div class="rounded-xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-900/50 p-5">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs font-medium uppercase tracking-wide text-slate-500">${title}</p>
+              <p class="mt-2 text-2xl font-bold text-slate-100">${fmt.money(account.balance)}</p>
+            </div>
+            <span class="rounded-lg bg-${color}-500/10 px-2 py-1 font-mono text-xs text-${color}-400 ring-1 ring-${color}-500/30">
+              ${account.account_number}
+            </span>
+          </div>
+        </div>`;
+    }
+
+    function actionCard(id, title, subtitle, fields, color) {
+      return `
+        <form data-action="${id}" class="space-y-3 rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-200">${title}</h3>
+            <p class="text-xs text-slate-500">${subtitle}</p>
+          </div>
+          ${fields}
+          <button type="submit"
+                  class="w-full rounded-lg bg-${color}-600/90 px-3 py-2 text-sm font-semibold text-white transition hover:bg-${color}-500 disabled:opacity-50">
+            ${title}
+          </button>
+        </form>`;
+    }
+
+    function txnRow(t) {
+      return `
+        <tr class="transition hover:bg-slate-800/50">
+          <td class="px-4 py-3 font-mono text-xs text-slate-400">${t.reference}</td>
+          <td class="px-4 py-3 text-slate-300">${fmt.label(t.type)}</td>
+          <td class="px-4 py-3 text-right font-medium text-slate-200">${fmt.money(t.amount)}</td>
+          <td class="px-4 py-3">${statusBadge(t.status)}</td>
+          <td class="px-4 py-3 text-xs text-slate-500">${fmt.dateTime(t.created_at)}</td>
+        </tr>`;
+    }
+
+    // ---------------------------------------------------------------- actions
+
+    function wireActions() {
+      document.querySelectorAll('form[data-action]').forEach((form) => {
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+
+          const button = form.querySelector('button');
+          const original = button.textContent;
+          button.disabled = true;
+          button.textContent = 'Working…';
+
+          try {
+            const result = await submit(form.dataset.action);
+
+            // Tell the customer plainly when the audit system flagged them.
+            if (result?.flagged) {
+              const titles = result.alerts.map((a) => a.title).join(', ');
+              toast(`⚠️ Flagged for review: <strong>${esc(titles)}</strong>`, 'alert');
+            } else {
+              toast('Done.', 'success');
+            }
+
+            await refresh();
+          } catch (error) {
+            toast(esc(error.message), 'error');
+            button.disabled = false;
+            button.textContent = original;
+          }
+        });
+      });
+    }
+
+    function submit(action) {
+      const value = (id) => document.getElementById(id).value;
+
+      switch (action) {
+        case 'deposit':
+          return API.post('bank.php?action=deposit', {
+            amount: value('deposit-amount'),
+            account_type: value('deposit-account'),
+          });
+
+        case 'withdraw':
+          return API.post('bank.php?action=withdraw', {
+            amount: value('withdraw-amount'),
+            account_type: value('withdraw-account'),
+          });
+
+        case 'transfer':
+          return API.post('bank.php?action=transfer', {
+            amount: value('transfer-amount'),
+            to_account_number: value('transfer-to'),
+          });
+
+        case 'pay':
+          return API.post('bank.php?action=pay', {
+            amount: value('pay-amount'),
+            biller: value('pay-biller'),
+            kind: value('pay-kind'),
+          });
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

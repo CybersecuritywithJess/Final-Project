@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Open an account — Demo Bank</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+
+  <main class="flex min-h-screen items-center justify-center p-6">
+    <div class="w-full max-w-sm">
+
+      <div class="mb-8 text-center">
+        <div class="mb-3 text-4xl">🏦</div>
+        <h1 class="text-xl font-bold">Open an account</h1>
+        <p class="mt-1 text-sm text-slate-500">
+          You get a checking and a savings account
+        </p>
+      </div>
+
+      <form id="register-form"
+            class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+
+        <div id="banner" class="hidden rounded-lg px-3 py-2 text-sm"></div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-slate-300">Full name</label>
+          <input id="full_name" required placeholder="Jane Mwangi"
+                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-slate-300">Username</label>
+          <input id="username" required placeholder="jane_m"
+                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-slate-300">Email</label>
+          <input id="email" type="email" required placeholder="jane@example.com"
+                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-slate-300">Phone</label>
+          <input id="phone" placeholder="+254712345678"
+                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-slate-300">Password</label>
+          <input id="password" type="password" required placeholder="At least 8 characters"
+                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+          <p class="mt-1.5 text-xs text-slate-600">
+            Stored as a bcrypt hash — never in plain text.
+          </p>
+        </div>
+
+        <button type="submit" id="submit-btn"
+                class="w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50">
+          Create account
+        </button>
+
+        <p class="text-center text-sm text-slate-500">
+          Already have one?
+          <a href="/login.html" class="font-medium text-sky-400 hover:text-sky-300">Sign in</a>
+        </p>
+      </form>
+    </div>
+  </main>
+
+  <script src="/assets/js/api.js"></script>
+  <script>
+    const banner = document.getElementById('banner');
+
+    function showBanner(message, kind = 'error') {
+      const styles = {
+        error:   'bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/30',
+        success: 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30',
+      };
+      banner.className = `rounded-lg px-3 py-2 text-sm ${styles[kind]}`;
+      banner.textContent = message;
+    }
+
+    document.getElementById('register-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const button = document.getElementById('submit-btn');
+      button.disabled = true;
+      button.textContent = 'Creating…';
+
+      try {
+        await API.register({
+          full_name: document.getElementById('full_name').value.trim(),
+          username: document.getElementById('username').value.trim(),
+          email: document.getElementById('email').value.trim(),
+          phone: document.getElementById('phone').value.trim(),
+          password: document.getElementById('password').value,
+        });
+
+        showBanner('Account created. Redirecting you to sign in…', 'success');
+        setTimeout(() => (window.location.href = '/login.html'), 1200);
+      } catch (error) {
+        showBanner(error.message);
+        button.disabled = false;
+        button.textContent = 'Create account';
+      }
+    });
+  </script>
+</body>
+</html>

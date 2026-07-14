@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — Audit Tracking System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+
+  <main class="ml-60 p-8">
+    <header class="mb-8 flex items-end justify-between">
+      <div>
+        <h1 class="text-2xl font-bold">Audit Dashboard</h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Live view of everything the Demo Bank has generated.
+        </p>
+      </div>
+      <button id="refresh"
+              class="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-slate-200">
+        Refresh
+      </button>
+    </header>
+
+    <div id="content"></div>
+  </main>
+
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    const content = document.getElementById('content');
+    const charts = [];
+
+    async function init() {
+      const user = await mountShell('/dashboard.html', ['auditor', 'admin']);
+      if (!user) return;
+
+      document.getElementById('refresh').addEventListener('click', load);
+      await load();
+    }
+
+    async function load() {
+      loading(content, 'Loading audit data…');
+
+      // Charts must be destroyed before their canvases are thrown away.
+      charts.forEach((c) => c.destroy());
+      charts.length = 0;
+
+      const data = await API.get('audit.php?action=dashboard');
+      render(data);
+    }
+
+    function render(d) {
+      const k = d.kpis;
+
+      content.innerHTML = `
+        <!-- KPI tiles -->
+        <section class="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+          ${kpi('Total customers', fmt.number(k.total_users), 'slate')}
+          ${kpi('Active today', fmt.number(k.active_today), 'slate')}
+          ${kpi('Logins today', fmt.number(k.logins_today), 'sky')}
+          ${kpi('Failed logins', fmt.number(k.failed_logins_today), k.failed_logins_today > 0 ? 'amber' : 'slate')}
+          ${kpi('Transactions today', fmt.number(k.transactions_today), 'sky')}
+          ${kpi('Flagged transactions', fmt.number(k.flagged_transactions), k.flagged_transactions > 0 ? 'orange' : 'slate')}
+          ${kpi('Critical alerts open', fmt.number(k.critical_open), k.critical_open > 0 ? 'rose' : 'emerald', '/alerts.html?risk=CRITICAL')}
+          ${kpi('Pending reviews', fmt.number(k.pending_reviews), k.pending_reviews > 0 ? 'violet' : 'slate', '/alerts.html')}
+        </section>
+
+        <section class="mb-8 grid gap-4 md:grid-cols-3">
+          ${kpi('Locked accounts', fmt.number(k.locked_accounts), k.locked_accounts > 0 ? 'rose' : 'slate')}
+          ${kpi('Total transferred', fmt.money(k.total_transferred), 'slate')}
+          ${kpi('Audit events recorded', fmt.number(k.total_audits), 'slate', '/audits.html')}
+        </section>
+
+        <!-- Risk summary -->
+        <section class="mb-8">
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Risk summary</h2>
+          <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+            ${riskTile('CRITICAL', d.risk_summary.CRITICAL, 'rose')}
+            ${riskTile('HIGH', d.risk_summary.HIGH, 'orange')}
+            ${riskTile('MEDIUM', d.risk_summary.MEDIUM, 'amber')}
+            ${riskTile('LOW', d.risk_summary.LOW, 'emerald')}
+          </div>
+        </section>
+
+        <!-- Charts -->
+        <section class="mb-8 grid gap-6 lg:grid-cols-2">
+          ${panel('Login activity (14 days)', '<canvas id="chart-logins" height="120"></canvas>')}
+          ${panel('Transaction volume (14 days)', '<canvas id="chart-volume" height="120"></canvas>')}
+          ${panel('Events by compliance category', '<canvas id="chart-category" height="140"></canvas>')}
+          ${panel('Transactions by type', '<canvas id="chart-types" height="140"></canvas>')}
+        </section>
+
+        <!-- Feed + top users -->
+        <section class="grid gap-6 lg:grid-cols-2">
+          ${panel('Live activity feed', `
+            <div class="-mx-5 -mb-5 max-h-96 divide-y divide-slate-800 overflow-y-auto">
+              ${d.recent_feed.map(feedRow).join('')}
+            </div>`)}
+
+          ${panel('Most active customers', `
+            <div class="space-y-1">
+              ${d.top_active_users.map(userRow).join('')}
+            </div>`)}
+        </section>`;
+
+      drawCharts(d);
+    }
+
+    // ------------------------------------------------------------ components
+
+    function kpi(label, value, color, href = null) {
+      const tag = href ? 'a' : 'div';
+      const attrs = href ? `href="${href}"` : '';
+      const hover = href ? 'transition hover:border-slate-700 hover:bg-slate-800/50' : '';
+
+      return `
+        <${tag} ${attrs} class="block rounded-xl border border-slate-800 bg-slate-900 p-4 ${hover}">
+          <p class="text-xs font-medium uppercase tracking-wide text-slate-500">${label}</p>
+          <p class="mt-2 text-2xl font-bold text-${color}-${color === 'slate' ? '100' : '400'}">${value}</p>
+        </${tag}>`;
+    }
+
+    function riskTile(level, count, color) {
+      return `
+        <a href="/audits.html?risk_level=${level}"
+           class="rounded-xl border border-${color}-500/20 bg-${color}-500/5 p-4 transition hover:bg-${color}-500/10">
+          <p class="text-xs font-bold uppercase tracking-wide text-${color}-400">${level}</p>
+          <p class="mt-2 text-3xl font-bold text-${color}-400">${fmt.number(count)}</p>
+        </a>`;
+    }
+
+    function panel(title, inner) {
+      return `
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <h3 class="mb-4 text-sm font-semibold text-slate-300">${title}</h3>
+          ${inner}
+        </div>`;
+    }
+
+    function feedRow(e) {
+      return `
+        <a href="/audits.html?search=${encodeURIComponent(e.audit_ref)}"
+           class="flex items-start gap-3 px-5 py-3 transition hover:bg-slate-800/50">
+          <div class="mt-0.5">${riskBadge(e.risk_level)}</div>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm text-slate-300">${esc(e.description)}</p>
+            <p class="mt-0.5 text-xs text-slate-600">
+              <span class="font-mono">${e.audit_ref}</span>
+              ${e.username ? ` · ${esc(e.username)}` : ''} · ${fmt.ago(e.created_at)}
+            </p>
+          </div>
+        </a>`;
+    }
+
+    function userRow(u) {
+      const color = u.peak_risk >= 95 ? 'rose' : u.peak_risk >= 70 ? 'orange' : u.peak_risk >= 40 ? 'amber' : 'emerald';
+      return `
+        <a href="/timeline.html?user=${u.id}"
+           class="flex items-center justify-between rounded-lg px-3 py-2 transition hover:bg-slate-800">
+          <div class="min-w-0">
+            <p class="truncate text-sm font-medium text-slate-200">${esc(u.full_name)}</p>
+            <p class="text-xs text-slate-600">@${esc(u.username)} · ${fmt.number(u.events)} events</p>
+          </div>
+          <div class="ml-3 shrink-0 text-right">
+            <p class="text-xs text-slate-600">peak risk</p>
+            <p class="text-sm font-bold text-${color}-400">${u.peak_risk}</p>
+          </div>
+        </a>`;
+    }
+
+    // ---------------------------------------------------------------- charts
+
+    const GRID = 'rgba(148, 163, 184, 0.08)';
+    const TICK = '#64748b';
+
+    const BASE_OPTIONS = {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { labels: { color: TICK, boxWidth: 12, font: { size: 11 } } },
+      },
+      scales: {
+        x: { grid: { color: GRID }, ticks: { color: TICK, font: { size: 10 } } },
+        y: { grid: { color: GRID }, ticks: { color: TICK, font: { size: 10 } }, beginAtZero: true },
+      },
+    };
+
+    function drawCharts(d) {
+      const days = d.login_trend.map((r) => fmt.date(r.day).slice(0, 6));
+
+      charts.push(new Chart(document.getElementById('chart-logins'), {
+        type: 'line',
+        data: {
+          labels: days,
+          datasets: [
+            {
+              label: 'Successful',
+              data: d.login_trend.map((r) => r.successful),
+              borderColor: '#38bdf8',
+              backgroundColor: 'rgba(56, 189, 248, 0.1)',
+              fill: true,
+              tension: 0.3,
+            },
+            {
+              label: 'Failed',
+              data: d.login_trend.map((r) => r.failed),
+              borderColor: '#fb7185',
+              backgroundColor: 'rgba(251, 113, 133, 0.1)',
+              fill: true,
+              tension: 0.3,
+            },
+          ],
+        },
+        options: BASE_OPTIONS,
+      }));
+
+      charts.push(new Chart(document.getElementById('chart-volume'), {
+        type: 'bar',
+        data: {
+          labels: d.transaction_trend.map((r) => fmt.date(r.day).slice(0, 6)),
+          datasets: [{
+            label: 'Volume (KES)',
+            data: d.transaction_trend.map((r) => r.volume),
+            backgroundColor: 'rgba(139, 92, 246, 0.5)',
+            borderColor: '#8b5cf6',
+            borderWidth: 1,
+          }],
+        },
+        options: BASE_OPTIONS,
+      }));
+
+      charts.push(new Chart(document.getElementById('chart-category'), {
+        type: 'doughnut',
+        data: {
+          labels: d.category_breakdown.map((r) => r.category),
+          datasets: [{
+            data: d.category_breakdown.map((r) => r.count),
+            backgroundColor: ['#38bdf8', '#8b5cf6', '#fb7185', '#fbbf24', '#34d399', '#f97316', '#94a3b8'],
+            borderColor: '#0f172a',
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'right', labels: { color: TICK, boxWidth: 12, font: { size: 11 } } } },
+        },
+      }));
+
+      charts.push(new Chart(document.getElementById('chart-types'), {
+        type: 'bar',
+        data: {
+          labels: d.transactions_by_type.map((r) => fmt.label(r.type)),
+          datasets: [{
+            label: 'Count',
+            data: d.transactions_by_type.map((r) => r.count),
+            backgroundColor: 'rgba(56, 189, 248, 0.5)',
+            borderColor: '#38bdf8',
+            borderWidth: 1,
+          }],
+        },
+        options: { ...BASE_OPTIONS, indexAxis: 'y', plugins: { legend: { display: false } } },
+      }));
+    }
+
+    init();
+  </script>
+</body>
+</html>

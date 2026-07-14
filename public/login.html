@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in — Financial Audit Tracking System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+
+  <main class="flex min-h-screen items-center justify-center p-6">
+    <div class="w-full max-w-sm">
+
+      <div class="mb-8 text-center">
+        <div class="mb-3 text-4xl">🛡️</div>
+        <h1 class="text-xl font-bold text-slate-100">Financial Audit Tracking System</h1>
+        <p class="mt-1 text-sm text-slate-500">Demo Bank &middot; every action is audited</p>
+      </div>
+
+      <form id="login-form"
+            class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+
+        <div id="banner" class="hidden rounded-lg px-3 py-2 text-sm"></div>
+
+        <div>
+          <label for="username" class="mb-1.5 block text-sm font-medium text-slate-300">
+            Username or email
+          </label>
+          <input id="username" name="username" autocomplete="username" required
+                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm
+                        text-slate-100 placeholder-slate-600 outline-none transition
+                        focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                 placeholder="auditor" />
+        </div>
+
+        <div>
+          <label for="password" class="mb-1.5 block text-sm font-medium text-slate-300">
+            Password
+          </label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required
+                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm
+                        text-slate-100 placeholder-slate-600 outline-none transition
+                        focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                 placeholder="••••••••" />
+        </div>
+
+        <!-- The bank cannot see where you really are, so for the demo you tell it.
+             This is what makes the "impossible travel" rule observable. -->
+        <details class="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2">
+          <summary class="cursor-pointer select-none text-xs font-medium text-slate-500 hover:text-slate-300">
+            Simulate location &amp; device
+          </summary>
+          <div class="mt-3 space-y-2">
+            <p class="text-[11px] leading-relaxed text-slate-500">
+              Sign in from another country to trip the impossible-travel rule.
+            </p>
+            <div class="grid grid-cols-2 gap-2">
+              <input id="country" placeholder="Country" value="Kenya"
+                     class="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500" />
+              <input id="city" placeholder="City" value="Nairobi"
+                     class="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500" />
+            </div>
+            <input id="ip" placeholder="IP address" value="41.90.64.12"
+                   class="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500" />
+          </div>
+        </details>
+
+        <button type="submit" id="submit-btn"
+                class="w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white
+                       transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500
+                       focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50">
+          Sign in
+        </button>
+
+        <p class="text-center text-sm text-slate-500">
+          No account?
+          <a href="/register.html" class="font-medium text-sky-400 hover:text-sky-300">Open one</a>
+        </p>
+      </form>
+
+      <!-- Demo credentials, so a marker never has to hunt for a way in. -->
+      <div class="mt-6 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+        <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Demo accounts &middot; password <span class="text-slate-300">Password123!</span>
+        </p>
+        <div class="space-y-1.5 text-xs" id="demo-users"></div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="/assets/js/api.js"></script>
+  <script>
+    const DEMO_USERS = [
+      ['admin',   'Administrator — manage users, tune thresholds'],
+      ['auditor', 'Auditor — dashboard, audit log, investigations'],
+      ['mary_w',  'Customer — 2 critical alerts against her'],
+      ['faith_n', 'Customer — clean history, make transactions'],
+    ];
+
+    document.getElementById('demo-users').innerHTML = DEMO_USERS.map(([user, note]) => `
+      <button data-user="${user}"
+              class="demo-user flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition hover:bg-slate-800">
+        <code class="w-16 shrink-0 font-mono font-semibold text-sky-400">${user}</code>
+        <span class="truncate text-slate-500">${note}</span>
+      </button>`).join('');
+
+    // One click fills the form — nobody should have to type these.
+    document.querySelectorAll('.demo-user').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.getElementById('username').value = button.dataset.user;
+        document.getElementById('password').value = 'Password123!';
+        document.getElementById('password').focus();
+      });
+    });
+
+    const banner = document.getElementById('banner');
+    function showBanner(message, kind = 'error') {
+      const styles = {
+        error: 'bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/30',
+        info:  'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/30',
+      };
+      banner.className = `rounded-lg px-3 py-2 text-sm ${styles[kind]}`;
+      banner.textContent = message;
+    }
+
+    if (new URLSearchParams(location.search).has('expired')) {
+      showBanner('Your session timed out. Please sign in again.', 'info');
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const button = document.getElementById('submit-btn');
+      button.disabled = true;
+      button.textContent = 'Signing in…';
+
+      // Stash the simulated location so every later request carries it too.
+      sessionStorage.setItem('demo_context', JSON.stringify({
+        country: document.getElementById('country').value.trim() || 'Kenya',
+        city: document.getElementById('city').value.trim() || 'Nairobi',
+        ip: document.getElementById('ip').value.trim() || '41.90.64.12',
+      }));
+
+      try {
+        const { user } = await API.login(
+          document.getElementById('username').value.trim(),
+          document.getElementById('password').value,
+        );
+        window.location.href = user.role === 'customer' ? '/bank.html' : '/dashboard.html';
+      } catch (error) {
+        showBanner(error.message);
+        button.disabled = false;
+        button.textContent = 'Sign in';
+      }
+    });
+  </script>
+</body>
+</html>

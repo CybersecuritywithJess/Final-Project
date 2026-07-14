@@ -1,0 +1,23 @@
+# Local configuration / secrets
+.env
+config/config.local.php
+
+# Logs
+*.log
+logs/
+
+# Database dumps
+*.sql.bak
+dump.sql
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.swp
+
+# Keep the shared VS Code settings, ignore personal ones
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json

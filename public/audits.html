@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Audit Log — Audit Tracking System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+
+  <main class="ml-60 p-8">
+    <header class="mb-6 flex items-end justify-between">
+      <div>
+        <h1 class="text-2xl font-bold">Audit Log</h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Every event the bank has ever generated. Nothing is deleted.
+        </p>
+      </div>
+      <button id="export"
+              class="rounded-lg bg-emerald-600/90 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-500">
+        Export CSV
+      </button>
+    </header>
+
+    <!-- Filters -->
+    <form id="filters" class="mb-6 rounded-xl border border-slate-800 bg-slate-900 p-4">
+      <div class="grid gap-3 md:grid-cols-4">
+        <div class="md:col-span-2">
+          <input id="f-search" name="search" placeholder="Search description, user, IP, audit ref, transaction ref…"
+                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-600 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+        </div>
+        <select id="f-risk_level" name="risk_level" class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500">
+          <option value="">Any risk level</option>
+        </select>
+        <select id="f-category" name="category" class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500">
+          <option value="">Any category</option>
+        </select>
+      </div>
+
+      <details class="mt-3">
+        <summary class="cursor-pointer select-none text-xs font-medium text-slate-500 hover:text-slate-300">
+          More filters
+        </summary>
+        <div class="mt-3 grid gap-3 md:grid-cols-4">
+          <select id="f-event_type" name="event_type" class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500">
+            <option value="">Any event type</option>
+          </select>
+          <select id="f-user_id" name="user_id" class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500">
+            <option value="">Any customer</option>
+          </select>
+          <select id="f-country" name="country" class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500">
+            <option value="">Any country</option>
+          </select>
+          <input id="f-ip" name="ip" placeholder="IP address"
+                 class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-600 outline-none focus:border-sky-500" />
+
+          <input id="f-min_amount" name="min_amount" type="number" placeholder="Min amount"
+                 class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-600 outline-none focus:border-sky-500" />
+          <input id="f-max_amount" name="max_amount" type="number" placeholder="Max amount"
+                 class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-600 outline-none focus:border-sky-500" />
+          <input id="f-from" name="from" type="date"
+                 class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300 outline-none focus:border-sky-500" />
+          <input id="f-to" name="to" type="date"
+                 class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300 outline-none focus:border-sky-500" />
+        </div>
+      </details>
+
+      <div class="mt-3 flex items-center gap-2">
+        <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500">
+          Search
+        </button>
+        <button type="button" id="clear" class="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-400 transition hover:bg-slate-800">
+          Clear
+        </button>
+        <span id="result-count" class="ml-auto text-sm text-slate-500"></span>
+      </div>
+    </form>
+
+    <div id="content"></div>
+  </main>
+
+  <!-- Event detail drawer -->
+  <div id="drawer" class="fixed inset-0 z-30 hidden">
+    <div id="drawer-backdrop" class="absolute inset-0 bg-slate-950/70"></div>
+    <aside class="absolute inset-y-0 right-0 w-full max-w-lg overflow-y-auto border-l border-slate-800 bg-slate-900 p-6 shadow-2xl">
+      <div id="drawer-content"></div>
+    </aside>
+  </div>
+
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    const content = document.getElementById('content');
+    const FILTER_KEYS = ['search', 'risk_level', 'category', 'event_type', 'user_id',
+                         'country', 'ip', 'min_amount', 'max_amount', 'from', 'to'];
+    let page = 1;
+
+    async function init() {
+      const user = await mountShell('/audits.html', ['auditor', 'admin']);
+      if (!user) return;
+
+      await loadFilterOptions();
+      applyUrlToForm();
+
+      document.getElementById('filters').addEventListener('submit', (e) => {
+        e.preventDefault();
+        page = 1;
+        load();
+      });
+
+      document.getElementById('clear').addEventListener('click', () => {
+        FILTER_KEYS.forEach((k) => (document.getElementById(`f-${k}`).value = ''));
+        page = 1;
+        load();
+      });
+
+      document.getElementById('export').addEventListener('click', () => {
+        const params = new URLSearchParams({ action: 'export', ...currentFilters() });
+        window.location.href = `/api/audit.php?${params}`;
+        toast('Export started. The download includes every row matching your filters.', 'success');
+      });
+
+      document.getElementById('drawer-backdrop').addEventListener('click', closeDrawer);
+      document.addEventListener('keydown', (e) => e.key === 'Escape' && closeDrawer());
+
+      await load();
+    }
+
+    /** Populate the dropdowns from the server's catalog. */
+    async function loadFilterOptions() {
+      const meta = await API.get('audit.php?action=meta');
+
+      fill('f-risk_level', meta.risk_levels.map((r) => [r, r]));
+      fill('f-category', meta.categories.map((c) => [c, c]));
+      fill('f-event_type', meta.event_types.map((e) => [e.key, e.label]));
+      fill('f-country', meta.countries.map((c) => [c, c]));
+      fill('f-user_id', meta.customers.map((c) => [c.id, `${c.full_name} (@${c.username})`]));
+    }
+
+    function fill(id, options) {
+      const select = document.getElementById(id);
+      options.forEach(([value, label]) => select.add(new Option(label, value)));
+    }
+
+    /** Let the dashboard deep-link into a filtered view. */
+    function applyUrlToForm() {
+      const params = new URLSearchParams(location.search);
+      FILTER_KEYS.forEach((key) => {
+        if (params.has(key)) document.getElementById(`f-${key}`).value = params.get(key);
+      });
+      // The dashboard's risk tiles link with ?risk= for brevity.
+      if (params.has('risk')) document.getElementById('f-risk_level').value = params.get('risk');
+    }
+
+    function currentFilters() {
+      const filters = {};
+      FILTER_KEYS.forEach((key) => {
+        const value = document.getElementById(`f-${key}`).value.trim();
+        if (value) filters[key] = value;
+      });
+      return filters;
+    }
+
+    async function load() {
+      loading(content);
+
+      const data = await API.get('audit.php?action=events', {
+        ...currentFilters(),
+        page,
+        page_size: 25,
+      });
+
+      document.getElementById('result-count').textContent =
+        `${fmt.number(data.total)} event${data.total === 1 ? '' : 's'}`;
+
+      render(data);
+    }
+
+    function render(data) {
+      if (data.events.length === 0) {
+        content.innerHTML = `
+          <div class="rounded-xl border border-slate-800 bg-slate-900 p-12 text-center">
+            <p class="text-sm text-slate-500">No events match those filters.</p>
+          </div>`;
+        return;
+      }
+
+      content.innerHTML = `
+        <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+          <table class="w-full text-sm">
+            <thead class="border-b border-slate-800 bg-slate-900/50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th class="px-4 py-3 font-medium">Ref</th>
+                <th class="px-4 py-3 font-medium">Risk</th>
+                <th class="px-4 py-3 font-medium">Event</th>
+                <th class="px-4 py-3 font-medium">Description</th>
+                <th class="px-4 py-3 font-medium">User</th>
+                <th class="px-4 py-3 font-medium">When</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800">
+              ${data.events.map(row).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between">
+          <p class="text-sm text-slate-500">
+            Page ${data.page} of ${data.pages || 1}
+          </p>
+          <div class="flex gap-2">
+            <button id="prev" ${data.page <= 1 ? 'disabled' : ''}
+                    class="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-400 transition hover:bg-slate-800 disabled:opacity-30">
+              Previous
+            </button>
+            <button id="next" ${data.page >= data.pages ? 'disabled' : ''}
+                    class="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-400 transition hover:bg-slate-800 disabled:opacity-30">
+              Next
+            </button>
+          </div>
+        </div>`;
+
+      document.getElementById('prev').addEventListener('click', () => { page--; load(); });
+      document.getElementById('next').addEventListener('click', () => { page++; load(); });
+
+      document.querySelectorAll('tr[data-id]').forEach((tr) => {
+        tr.addEventListener('click', () => openDrawer(tr.dataset.id));
+      });
+    }
+
+    function row(e) {
+      return `
+        <tr data-id="${e.id}" class="cursor-pointer transition hover:bg-slate-800/50">
+          <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-500">${e.audit_ref}</td>
+          <td class="px-4 py-3">${riskBadge(e.risk_level)}</td>
+          <td class="whitespace-nowrap px-4 py-3 text-xs text-slate-400">${fmt.label(e.event_type)}</td>
+          <td class="max-w-md px-4 py-3">
+            <p class="truncate text-slate-300">${esc(e.description)}</p>
+          </td>
+          <td class="whitespace-nowrap px-4 py-3 text-xs text-slate-400">
+            ${e.username ? esc(e.username) : '<span class="text-slate-700">—</span>'}
+          </td>
+          <td class="whitespace-nowrap px-4 py-3 text-xs text-slate-500">${fmt.dateTime(e.created_at)}</td>
+        </tr>`;
+    }
+
+    // ---------------------------------------------------------------- drawer
+
+    async function openDrawer(id) {
+      const drawer = document.getElementById('drawer');
+      const body = document.getElementById('drawer-content');
+
+      drawer.classList.remove('hidden');
+      loading(body);
+
+      const { event: e } = await API.get('audit.php?action=event', { id });
+
+      const meta = Object.entries(e.metadata || {});
+
+      body.innerHTML = `
+        <div class="mb-6 flex items-start justify-between">
+          <div>
+            <p class="font-mono text-xs text-slate-500">${e.audit_ref}</p>
+            <h2 class="mt-1 text-lg font-bold">${fmt.label(e.event_type)}</h2>
+          </div>
+          <button id="drawer-close" class="rounded-lg p-1 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200">✕</button>
+        </div>
+
+        <div class="mb-6 flex items-center gap-2">
+          ${riskBadge(e.risk_level)}
+          <span class="text-xs text-slate-500">score ${e.risk_score}/100</span>
+          <span class="ml-auto rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">${e.category}</span>
+        </div>
+
+        <p class="mb-6 rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm leading-relaxed text-slate-300">
+          ${esc(e.description)}
+        </p>
+
+        <dl class="space-y-0 divide-y divide-slate-800 text-sm">
+          ${detail('When', fmt.dateTime(e.created_at))}
+          ${e.username ? detail('User', `<a href="/timeline.html?user=${e.subject_user_id}" class="text-sky-400 hover:text-sky-300">${esc(e.full_name)} (@${esc(e.username)})</a>`) : ''}
+          ${e.email ? detail('Email', esc(e.email)) : ''}
+          ${e.amount ? detail('Amount', fmt.money(e.amount)) : ''}
+          ${e.txn_ref ? detail('Transaction', `<span class="font-mono text-xs">${e.txn_ref}</span>`) : ''}
+          ${detail('IP address', `<span class="font-mono text-xs">${esc(e.ip_address)}</span>`)}
+          ${detail('Location', `${esc(e.city || '—')}, ${esc(e.country || '—')}`)}
+          ${detail('Device', `${esc(e.browser)} on ${esc(e.os)} (${esc(e.device_type)})`)}
+          ${e.actor_role ? detail('Performed by', `<span class="capitalize">${esc(e.actor_role)}</span>`) : ''}
+        </dl>
+
+        ${meta.length ? `
+          <div class="mt-6">
+            <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Metadata</h3>
+            <pre class="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-400">${esc(JSON.stringify(e.metadata, null, 2))}</pre>
+          </div>` : ''}`;
+
+      document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+    }
+
+    function detail(label, value) {
+      return `
+        <div class="flex justify-between gap-4 py-2.5">
+          <dt class="shrink-0 text-slate-500">${label}</dt>
+          <dd class="text-right text-slate-300">${value}</dd>
+        </div>`;
+    }
+
+    function closeDrawer() {
+      document.getElementById('drawer').classList.add('hidden');
+    }
+
+    init();
+  </script>
+</body>
+</html>
