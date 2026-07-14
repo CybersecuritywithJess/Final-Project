@@ -11,10 +11,26 @@
  */
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/../../src/GoogleAuth.php';
 
 $ctx = Context::fromRequest();
 
 switch (action()) {
+    case 'config':
+        // The login page asks this before deciding whether to draw the Google button.
+        Response::json([
+            'google' => [
+                'enabled'   => GoogleAuth::enabled(),
+                'client_id' => GoogleAuth::clientId(),
+            ],
+        ]);
+        break;
+
+    case 'google':
+        requireMethod('POST');
+        googleSignIn($ctx);
+        break;
+
     case 'register':
         requireMethod('POST');
         register($ctx);
@@ -140,6 +156,12 @@ function login(Context $ctx): never
         Response::error('This account is closed.', 403);
     }
 
+    // A Google-only account has no password to check against. Point them at the
+    // right door instead of letting an empty password compare against NULL.
+    if ($user['password_hash'] === null) {
+        Response::error('This account uses Google sign-in. Please use "Continue with Google".', 400);
+    }
+
     // --- wrong password
     if (!Auth::verify($password, $user['password_hash'])) {
         $attempts = (int) $user['failed_logins'] + 1;
@@ -216,6 +238,146 @@ function login(Context $ctx): never
             'subject_user_id' => (int) $user['id'],
             'description'     => "Login from {$ctx->country}, but the account's home country is " .
                                  $user['home_country'],
+            'metadata'        => ['country' => $ctx->country, 'home_country' => $user['home_country']],
+        ]);
+    }
+
+    Response::json([
+        'user' => [
+            'id'        => (int) $user['id'],
+            'username'  => $user['username'],
+            'full_name' => $user['full_name'],
+            'email'     => $user['email'],
+            'role'      => $user['role'],
+        ],
+    ]);
+}
+
+// ----------------------------------------------------------- GOOGLE SIGN-IN
+
+/**
+ * Sign in (or transparently sign up) with a Google ID token.
+ *
+ * Three cases, and they are audited differently because they mean different
+ * things to a security team:
+ *   - a returning Google user            -> login_success
+ *   - an existing password user's email  -> we link Google to that account
+ *   - a brand-new email                  -> user_registered, then login_success
+ */
+function googleSignIn(Context $ctx): never
+{
+    if (!GoogleAuth::enabled()) {
+        Response::error('Google sign-in is not configured on this server', 400);
+    }
+
+    $token = Response::body()['credential'] ?? '';
+
+    try {
+        $profile = GoogleAuth::verify($token);
+    } catch (RuntimeException $e) {
+        // A rejected Google token is a security-relevant event: record it.
+        AuditEngine::record([
+            'type'        => 'login_failed',
+            'ctx'         => $ctx,
+            'description' => 'Google sign-in rejected: ' . $e->getMessage(),
+            'metadata'    => ['provider' => 'google', 'reason' => 'token_verification_failed'],
+        ]);
+        Response::error($e->getMessage(), 401);
+    }
+
+    $user = Database::one('SELECT * FROM users WHERE google_id = ?', [$profile['sub']]);
+    $isNewUser = false;
+
+    if (!$user) {
+        // No Google link yet. Does the verified email already belong to someone?
+        $existing = Database::one('SELECT * FROM users WHERE email = ?', [$profile['email']]);
+
+        if ($existing) {
+            // Link Google to the existing account. Google has verified the email,
+            // so we know this really is the same person.
+            Database::run(
+                'UPDATE users SET google_id = ?, avatar_url = ? WHERE id = ?',
+                [$profile['sub'], $profile['picture'], $existing['id']]
+            );
+            $user = Database::one('SELECT * FROM users WHERE id = ?', [$existing['id']]);
+
+            AuditEngine::record([
+                'type'            => 'user_modified',
+                'ctx'             => $ctx,
+                'subject_user_id' => (int) $user['id'],
+                'actor'           => ['id' => (int) $user['id'], 'role' => $user['role']],
+                'description'     => "\"{$user['username']}\" linked their Google account for sign-in",
+                'metadata'        => ['provider' => 'google', 'linked' => true],
+            ]);
+        } else {
+            // Brand-new customer, created straight from the Google profile.
+            $username = GoogleAuth::suggestUsername($profile['email']);
+
+            $userId = Database::insert(
+                "INSERT INTO users (username, full_name, email, google_id, avatar_url, auth_provider, role)
+                 VALUES (?, ?, ?, ?, ?, 'google', 'customer')",
+                [$username, $profile['name'], $profile['email'], $profile['sub'], $profile['picture']]
+            );
+
+            $accounts = Bank::openAccounts($userId);
+            $user = Database::one('SELECT * FROM users WHERE id = ?', [$userId]);
+            $isNewUser = true;
+
+            AuditEngine::record([
+                'type'            => 'user_registered',
+                'ctx'             => $ctx,
+                'subject_user_id' => $userId,
+                'actor'           => ['id' => $userId, 'role' => 'customer'],
+                'description'     => "New customer \"$username\" registered with Google and was issued account "
+                                     . $accounts['checking']['account_number'],
+                'metadata'        => [
+                    'provider' => 'google',
+                    'email'    => $profile['email'],
+                    'accounts' => [
+                        $accounts['checking']['account_number'],
+                        $accounts['savings']['account_number'],
+                    ],
+                ],
+            ]);
+        }
+    }
+
+    if ($user['status'] === 'locked') {
+        Response::error('This account is locked. Contact an administrator.', 403);
+    }
+    if ($user['status'] === 'closed') {
+        Response::error('This account is closed.', 403);
+    }
+
+    // From here it is an ordinary successful login.
+    $signals = AuditEngine::trackDevice((int) $user['id'], $ctx, $user['home_country']);
+    Database::run(
+        'UPDATE users SET failed_logins = 0, last_login_at = NOW() WHERE id = ?',
+        [$user['id']]
+    );
+
+    Auth::login($user);
+    $ctx->sessionId = session_id();
+
+    if (!$isNewUser) {
+        AuditEngine::record([
+            'type'            => 'login_success',
+            'ctx'             => $ctx,
+            'subject_user_id' => (int) $user['id'],
+            'actor'           => ['id' => (int) $user['id'], 'role' => $user['role']],
+            'description'     => "{$user['role']} \"{$user['username']}\" signed in with Google from {$ctx->city}, {$ctx->country}",
+            'metadata'        => ['role' => $user['role'], 'provider' => 'google'],
+            'signals'         => $signals,
+        ]);
+    }
+
+    if ($signals['is_new_country']) {
+        AuditEngine::record([
+            'type'            => 'new_location_login',
+            'ctx'             => $ctx,
+            'subject_user_id' => (int) $user['id'],
+            'description'     => "Google sign-in from {$ctx->country}, but the account's home country is "
+                                 . $user['home_country'],
             'metadata'        => ['country' => $ctx->country, 'home_country' => $user['home_country']],
         ]);
     }

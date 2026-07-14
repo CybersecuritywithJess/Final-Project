@@ -18,4 +18,23 @@ return [
         'currency' => 'KES',
         'bcrypt_cost' => 12,
     ],
+
+    /**
+     * "Continue with Google".
+     *
+     * Leave the client id blank and the Google button simply does not appear —
+     * the rest of the app is unaffected. To switch it on, create an OAuth 2.0
+     * Client ID (type: Web application) at
+     * https://console.cloud.google.com/apis/credentials with
+     *
+     *   Authorised JavaScript origin:  http://localhost:8000
+     *
+     * then paste the client id below, or set GOOGLE_CLIENT_ID in the environment.
+     *
+     * The client id is public by design — it ships to the browser. There is no
+     * client SECRET here, because this flow does not need one.
+     */
+    'google' => [
+        'client_id' => getenv('GOOGLE_CLIENT_ID') ?: '',
+    ],
 ];

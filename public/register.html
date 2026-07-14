@@ -80,6 +80,16 @@
         You'll get a checking and a savings account.
       </p>
 
+      <!-- Sign up straight from a Google account. Hidden unless configured. -->
+      <div id="google-block" class="mb-6 hidden">
+        <div id="google-btn" class="flex justify-center"></div>
+        <div class="my-6 flex items-center gap-4">
+          <span class="h-px flex-1 bg-stone-200"></span>
+          <span class="text-xs font-medium uppercase tracking-wide text-stone-400">or sign up with email</span>
+          <span class="h-px flex-1 bg-stone-200"></span>
+        </div>
+      </div>
+
       <form id="register-form" class="mt-8 space-y-4">
 
         <div id="banner" class="hidden rounded-lg px-3.5 py-2.5 text-sm"></div>
@@ -145,6 +155,7 @@
 </style>
 
 <script src="/assets/js/api.js"></script>
+<script src="/assets/js/google.js"></script>
 <script>
   const banner = document.getElementById('banner');
 
@@ -156,6 +167,9 @@
     banner.className = `rounded-lg px-3.5 py-2.5 text-sm ${styles[kind]}`;
     banner.textContent = message;
   }
+
+  // Offer Google sign-up if the server has it configured.
+  initGoogleSignIn('google-btn');
 
   document.getElementById('register-form').addEventListener('submit', async (event) => {
     event.preventDefault();

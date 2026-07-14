@@ -68,9 +68,34 @@ Then open **<http://localhost:8000>**.
 > Prefer Apache? Copy the project into `C:\xampp\htdocs\`, point Apache's
 > document root at the `public/` folder, and start Apache instead of step 4.
 
+### Turn on "Continue with Google" (optional)
+
+The Google button is built in but stays hidden until you give it a Client ID —
+that ID is tied to your own Google account, so it can't be shipped in the repo.
+
+1. Go to <https://console.cloud.google.com/apis/credentials>.
+2. **Create Credentials → OAuth client ID → Web application.**
+3. Under **Authorised JavaScript origins**, add `http://localhost:8000`.
+4. Copy the Client ID it gives you (it ends in `.apps.googleusercontent.com`).
+5. Start the app with it set:
+
+   ```bash
+   GOOGLE_CLIENT_ID="your-id.apps.googleusercontent.com" \
+     C:\xampp\php\php.exe -S localhost:8000 -t public
+   ```
+
+   (Or paste it into `config/config.php` under `google` → `client_id`.)
+
+The button now appears on the login and sign-up pages. Signing in with Google
+creates a customer account on first use, links to an existing account if the
+email already matches, and — like everything else — is written to the audit log.
+
+If you already had a database before adding this feature, apply the migration
+once: `mysql -u root audit_tracking < database/migrations/001_google_auth.sql`.
+
 ### Sign in
 
-Every demo account uses the password **`Password123!`**
+Every password demo account uses the password **`Password123!`**
 
 | Username  | Role     | What's interesting about them                                           |
 |-----------|----------|-------------------------------------------------------------------------|

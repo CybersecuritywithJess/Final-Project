@@ -50,6 +50,17 @@
         Every sign-in is recorded — including this one.
       </p>
 
+      <!-- Google sign-in. Hidden until the server confirms it's configured;
+           the div is filled by Google's own rendered button. -->
+      <div id="google-block" class="mb-6 hidden">
+        <div id="google-btn" class="flex justify-center"></div>
+        <div class="my-6 flex items-center gap-4">
+          <span class="h-px flex-1 bg-stone-200"></span>
+          <span class="text-xs font-medium uppercase tracking-wide text-stone-400">or</span>
+          <span class="h-px flex-1 bg-stone-200"></span>
+        </div>
+      </div>
+
       <form id="login-form" class="mt-8 space-y-5">
 
         <div id="banner" class="hidden rounded-lg px-3.5 py-2.5 text-sm"></div>
@@ -150,6 +161,7 @@
 </div>
 
 <script src="/assets/js/api.js"></script>
+<script src="/assets/js/google.js"></script>
 <script>
   const DEMO_USERS = [
     ['auditor', 'Auditor — the dashboard and investigations'],
@@ -187,6 +199,9 @@
   if (new URLSearchParams(location.search).has('expired')) {
     showBanner('Your session timed out. Please log in again.', 'info');
   }
+
+  // Draw the Google button if the server has it configured.
+  initGoogleSignIn('google-btn');
 
   document.getElementById('login-form').addEventListener('submit', async (event) => {
     event.preventDefault();

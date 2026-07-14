@@ -18,7 +18,14 @@ CREATE TABLE users (
     full_name     VARCHAR(120) NOT NULL,
     email         VARCHAR(150) NOT NULL UNIQUE,
     phone         VARCHAR(30),
-    password_hash VARCHAR(255) NOT NULL,
+
+    -- NULL for people who signed in with Google: they never set a password
+    -- here, so there is nothing to hash and nothing for us to leak.
+    password_hash VARCHAR(255) NULL,
+    google_id     VARCHAR(64)  NULL UNIQUE,
+    avatar_url    VARCHAR(255) NULL,
+    auth_provider ENUM('password', 'google') NOT NULL DEFAULT 'password',
+
     role          ENUM('customer', 'auditor', 'admin') NOT NULL DEFAULT 'customer',
     status        ENUM('active', 'locked', 'closed')   NOT NULL DEFAULT 'active',
     failed_logins INT          NOT NULL DEFAULT 0,
