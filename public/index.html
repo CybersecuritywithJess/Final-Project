@@ -130,7 +130,6 @@
           <a href="/login.html"
              class="group inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white px-7 py-3.5 text-sm font-semibold text-stone-800 transition hover:border-forest-700 hover:text-forest-800">
             Log in
-            <span class="transition group-hover:translate-x-0.5">→</span>
           </a>
         </div>
 
@@ -363,21 +362,21 @@
 
         <ul class="mt-8 space-y-4">
           <li class="flex gap-3">
-            <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-forest-100 text-xs font-bold text-forest-700">✓</span>
+            <span class="mt-2 h-px w-5 shrink-0 bg-forest-300"></span>
             <p class="text-sm leading-relaxed text-stone-700">
               <span class="font-semibold text-ink">Passwords hashed with bcrypt.</span>
               Never stored, never recoverable, not even by an administrator.
             </p>
           </li>
           <li class="flex gap-3">
-            <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-forest-100 text-xs font-bold text-forest-700">✓</span>
+            <span class="mt-2 h-px w-5 shrink-0 bg-forest-300"></span>
             <p class="text-sm leading-relaxed text-stone-700">
               <span class="font-semibold text-ink">Every query is a prepared statement.</span>
               There is no string-concatenated SQL anywhere in the codebase.
             </p>
           </li>
           <li class="flex gap-3">
-            <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-forest-100 text-xs font-bold text-forest-700">✓</span>
+            <span class="mt-2 h-px w-5 shrink-0 bg-forest-300"></span>
             <p class="text-sm leading-relaxed text-stone-700">
               <span class="font-semibold text-ink">Refused access is still evidence.</span>
               A customer who pokes at the auditor's API is turned away — and logged
@@ -385,7 +384,7 @@
             </p>
           </li>
           <li class="flex gap-3">
-            <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-forest-100 text-xs font-bold text-forest-700">✓</span>
+            <span class="mt-2 h-px w-5 shrink-0 bg-forest-300"></span>
             <p class="text-sm leading-relaxed text-stone-700">
               <span class="font-semibold text-ink">Brute force locks the door.</span>
               Five wrong passwords and the account closes itself, with a critical
@@ -544,8 +543,7 @@
           </p>
 
           <div class="mt-10 space-y-6">
-            <div class="flex gap-4">
-              <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-forest-50 text-lg">✉️</span>
+            <div class="border-l-2 border-forest-200 pl-4">
               <div>
                 <p class="text-sm font-semibold text-ink">Email</p>
                 <p class="text-sm text-stone-600">hello@sentinelbank.co.ke</p>
@@ -553,8 +551,7 @@
               </div>
             </div>
 
-            <div class="flex gap-4">
-              <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-forest-50 text-lg">📞</span>
+            <div class="border-l-2 border-forest-200 pl-4">
               <div>
                 <p class="text-sm font-semibold text-ink">Phone</p>
                 <p class="text-sm text-stone-600">+254 700 000 000</p>
@@ -562,8 +559,7 @@
               </div>
             </div>
 
-            <div class="flex gap-4">
-              <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-forest-50 text-lg">📍</span>
+            <div class="border-l-2 border-forest-200 pl-4">
               <div>
                 <p class="text-sm font-semibold text-ink">Office</p>
                 <p class="text-sm text-stone-600">Westlands, Nairobi, Kenya</p>
@@ -694,7 +690,7 @@
       <span class="hidden text-sm text-stone-500 sm:inline">Hi, ${user.full_name.split(' ')[0]}</span>
       <a href="${home}"
          class="rounded-full bg-forest-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-forest-900">
-        Go to my ${user.role === 'customer' ? 'bank' : 'dashboard'} →
+        Go to my ${user.role === 'customer' ? 'bank' : 'dashboard'}
       </a>`;
   });
 
