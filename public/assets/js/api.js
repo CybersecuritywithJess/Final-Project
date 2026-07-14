@@ -56,4 +56,16 @@ const API = {
   register: (data) => API.post('auth.php?action=register', data),
   logout: () => API.post('auth.php?action=logout'),
   me: () => API.get('auth.php?action=me'),
+
+  /**
+   * "Am I signed in?" — for public pages, where being signed out is normal and
+   * must NOT bounce the visitor to the login screen. Resolves to the user, or
+   * null. Deliberately bypasses request()'s 401 redirect.
+   */
+  async whoami() {
+    const response = await fetch('/api/auth.php?action=me', { credentials: 'same-origin' });
+    if (!response.ok) return null;
+    const { user } = await response.json();
+    return user ?? null;
+  },
 };

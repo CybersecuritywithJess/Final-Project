@@ -1,15 +1,19 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Investigation — Audit Tracking System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/assets/js/theme.js"></script>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+<body class="min-h-screen bg-[#fdfcfa] font-sans text-ink antialiased">
 
   <main class="ml-60 p-8">
-    <a href="/alerts.html" class="mb-6 inline-block text-sm text-slate-500 transition hover:text-slate-300">
+    <a href="/alerts.html" class="mb-6 inline-block text-sm text-stone-500 transition hover:text-ink">
       ← Back to alerts
     </a>
     <div id="content"></div>
@@ -54,10 +58,10 @@
           <div class="mb-2 flex flex-wrap items-center gap-2">
             ${riskBadge(a.risk_level)}
             ${statusBadge(a.status)}
-            <span class="font-mono text-xs text-slate-600">${a.alert_ref}</span>
+            <span class="font-mono text-xs text-stone-400">${a.alert_ref}</span>
           </div>
           <h1 class="text-2xl font-bold">${esc(a.title)}</h1>
-          <p class="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">${esc(a.description)}</p>
+          <p class="mt-2 max-w-3xl text-sm leading-relaxed text-stone-600">${esc(a.description)}</p>
         </header>
 
         <div class="grid gap-6 lg:grid-cols-3">
@@ -66,9 +70,9 @@
           <div class="space-y-6 lg:col-span-2">
 
             <!-- Workflow -->
-            <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
-              <h2 class="mb-1 text-sm font-semibold text-slate-200">Investigation status</h2>
-              <p class="mb-4 text-xs text-slate-500">
+            <section class="rounded-xl border border-stone-200 bg-white p-5">
+              <h2 class="mb-1 text-sm font-semibold text-ink">Investigation status</h2>
+              <p class="mb-4 text-xs text-stone-500">
                 Changing this is recorded against your name in the audit log.
               </p>
               <div class="flex flex-wrap gap-2">
@@ -77,8 +81,8 @@
                   return `<button data-status="${value}"
                                   class="status-btn rounded-lg px-3 py-1.5 text-sm font-medium transition
                                          ${active
-                                           ? 'bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/30'
-                                           : 'text-slate-400 ring-1 ring-slate-800 hover:bg-slate-800 hover:text-slate-200'}">
+                                           ? 'bg-forest-50 text-forest-800 ring-1 ring-forest-200'
+                                           : 'text-stone-600 ring-1 ring-stone-200 hover:bg-stone-100 hover:text-ink'}">
                             ${label}
                           </button>`;
                 }).join('')}
@@ -86,23 +90,23 @@
             </section>
 
             <!-- Add a note -->
-            <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
-              <h2 class="mb-4 text-sm font-semibold text-slate-200">Add an investigation note</h2>
+            <section class="rounded-xl border border-stone-200 bg-white p-5">
+              <h2 class="mb-4 text-sm font-semibold text-ink">Add an investigation note</h2>
               <form id="note-form" class="space-y-3">
                 <div>
-                  <label class="mb-1.5 block text-xs font-medium text-slate-400">Finding</label>
+                  <label class="mb-1.5 block text-xs font-medium text-stone-600">Finding</label>
                   <textarea id="finding" rows="3" required
                             placeholder="What did you find? e.g. Contacted the customer; he confirmed he was travelling."
-                            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-600 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"></textarea>
+                            class="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm placeholder-stone-400 outline-none focus:border-forest-700 focus:ring-1 focus:ring-forest-700"></textarea>
                 </div>
                 <div>
-                  <label class="mb-1.5 block text-xs font-medium text-slate-400">Recommendation</label>
+                  <label class="mb-1.5 block text-xs font-medium text-stone-600">Recommendation</label>
                   <textarea id="recommendation" rows="2"
                             placeholder="What should happen next? e.g. Require MFA on the account."
-                            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-600 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"></textarea>
+                            class="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm placeholder-stone-400 outline-none focus:border-forest-700 focus:ring-1 focus:ring-forest-700"></textarea>
                 </div>
                 <button type="submit" id="note-btn"
-                        class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50">
+                        class="rounded-lg bg-forest-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-forest-900 disabled:opacity-50">
                   Save note
                 </button>
               </form>
@@ -110,12 +114,12 @@
 
             <!-- Notes -->
             <section>
-              <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+              <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-stone-500">
                 Investigation notes (${notes.length})
               </h2>
               ${notes.length === 0
-                ? `<div class="rounded-xl border border-slate-800 bg-slate-900 p-8 text-center">
-                     <p class="text-sm text-slate-600">Nothing recorded yet.</p>
+                ? `<div class="rounded-xl border border-stone-200 bg-white p-8 text-center">
+                     <p class="text-sm text-stone-400">Nothing recorded yet.</p>
                    </div>`
                 : `<div class="space-y-3">${notes.map(noteCard).join('')}</div>`}
             </section>
@@ -123,24 +127,24 @@
 
           <!-- Sidebar -->
           <aside class="space-y-6">
-            <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
-              <h2 class="mb-4 text-sm font-semibold text-slate-200">Case detail</h2>
-              <dl class="space-y-0 divide-y divide-slate-800 text-sm">
-                ${detail('Rule', `<code class="text-xs text-slate-400">${a.rule_key}</code>`)}
+            <section class="rounded-xl border border-stone-200 bg-white p-5">
+              <h2 class="mb-4 text-sm font-semibold text-ink">Case detail</h2>
+              <dl class="space-y-0 divide-y divide-stone-200 text-sm">
+                ${detail('Rule', `<code class="text-xs text-stone-600">${a.rule_key}</code>`)}
                 ${detail('Raised', fmt.dateTime(a.created_at))}
                 ${detail('Updated', fmt.dateTime(a.updated_at))}
-                ${a.audit_ref ? detail('Audit event', `<a href="/audits.html?search=${a.audit_ref}" class="font-mono text-xs text-sky-400 hover:text-sky-300">${a.audit_ref}</a>`) : ''}
+                ${a.audit_ref ? detail('Audit event', `<a href="/audits.html?search=${a.audit_ref}" class="font-mono text-xs text-forest-700 hover:text-forest-900">${a.audit_ref}</a>`) : ''}
               </dl>
             </section>
 
             ${a.username ? `
-              <section class="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                <h2 class="mb-4 text-sm font-semibold text-slate-200">Customer</h2>
-                <p class="text-sm font-medium text-slate-200">${esc(a.full_name)}</p>
-                <p class="text-xs text-slate-500">@${esc(a.username)}</p>
-                <p class="mt-1 text-xs text-slate-500">${esc(a.email)}</p>
+              <section class="rounded-xl border border-stone-200 bg-white p-5">
+                <h2 class="mb-4 text-sm font-semibold text-ink">Customer</h2>
+                <p class="text-sm font-medium text-ink">${esc(a.full_name)}</p>
+                <p class="text-xs text-stone-500">@${esc(a.username)}</p>
+                <p class="mt-1 text-xs text-stone-500">${esc(a.email)}</p>
                 <a href="/timeline.html?user=${a.customer_id}"
-                   class="mt-4 block rounded-lg bg-slate-800 px-3 py-2 text-center text-sm font-medium text-slate-200 transition hover:bg-slate-700">
+                   class="mt-4 block rounded-lg bg-stone-100 px-3 py-2 text-center text-sm font-medium text-ink transition hover:bg-stone-200">
                   View full timeline →
                 </a>
               </section>` : ''}
@@ -152,20 +156,20 @@
 
     function noteCard(n) {
       return `
-        <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+        <div class="rounded-xl border border-stone-200 bg-white p-5">
           <div class="mb-3 flex items-center justify-between">
-            <span class="text-sm font-medium text-slate-300">${esc(n.auditor_name || 'Unknown auditor')}</span>
-            <span class="text-xs text-slate-600">${fmt.dateTime(n.created_at)}</span>
+            <span class="text-sm font-medium text-stone-700">${esc(n.auditor_name || 'Unknown auditor')}</span>
+            <span class="text-xs text-stone-400">${fmt.dateTime(n.created_at)}</span>
           </div>
           <div class="space-y-3 text-sm">
             <div>
-              <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">Finding</p>
-              <p class="leading-relaxed text-slate-300">${esc(n.finding)}</p>
+              <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Finding</p>
+              <p class="leading-relaxed text-stone-700">${esc(n.finding)}</p>
             </div>
             ${n.recommendation ? `
               <div>
-                <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">Recommendation</p>
-                <p class="leading-relaxed text-slate-400">${esc(n.recommendation)}</p>
+                <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Recommendation</p>
+                <p class="leading-relaxed text-stone-600">${esc(n.recommendation)}</p>
               </div>` : ''}
           </div>
         </div>`;
@@ -174,8 +178,8 @@
     function detail(label, value) {
       return `
         <div class="flex justify-between gap-4 py-2.5">
-          <dt class="shrink-0 text-slate-500">${label}</dt>
-          <dd class="text-right text-slate-300">${value}</dd>
+          <dt class="shrink-0 text-stone-500">${label}</dt>
+          <dd class="text-right text-stone-700">${value}</dd>
         </div>`;
     }
 

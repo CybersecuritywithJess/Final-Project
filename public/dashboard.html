@@ -1,24 +1,28 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Dashboard — Audit Tracking System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/assets/js/theme.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+<body class="min-h-screen bg-[#fdfcfa] font-sans text-ink antialiased">
 
   <main class="ml-60 p-8">
     <header class="mb-8 flex items-end justify-between">
       <div>
         <h1 class="text-2xl font-bold">Audit Dashboard</h1>
-        <p class="mt-1 text-sm text-slate-500">
+        <p class="mt-1 text-sm text-stone-500">
           Live view of everything the Demo Bank has generated.
         </p>
       </div>
       <button id="refresh"
-              class="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-slate-200">
+              class="rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-600 transition hover:bg-stone-100 hover:text-ink">
         Refresh
       </button>
     </header>
@@ -57,30 +61,30 @@
       content.innerHTML = `
         <!-- KPI tiles -->
         <section class="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
-          ${kpi('Total customers', fmt.number(k.total_users), 'slate')}
-          ${kpi('Active today', fmt.number(k.active_today), 'slate')}
-          ${kpi('Logins today', fmt.number(k.logins_today), 'sky')}
-          ${kpi('Failed logins', fmt.number(k.failed_logins_today), k.failed_logins_today > 0 ? 'amber' : 'slate')}
-          ${kpi('Transactions today', fmt.number(k.transactions_today), 'sky')}
-          ${kpi('Flagged transactions', fmt.number(k.flagged_transactions), k.flagged_transactions > 0 ? 'orange' : 'slate')}
-          ${kpi('Critical alerts open', fmt.number(k.critical_open), k.critical_open > 0 ? 'rose' : 'emerald', '/alerts.html?risk=CRITICAL')}
-          ${kpi('Pending reviews', fmt.number(k.pending_reviews), k.pending_reviews > 0 ? 'violet' : 'slate', '/alerts.html')}
+          ${kpi('Total customers', fmt.number(k.total_users), 'neutral')}
+          ${kpi('Active today', fmt.number(k.active_today), 'neutral')}
+          ${kpi('Logins today', fmt.number(k.logins_today), 'neutral')}
+          ${kpi('Failed logins', fmt.number(k.failed_logins_today), k.failed_logins_today > 0 ? 'watch' : 'neutral')}
+          ${kpi('Transactions today', fmt.number(k.transactions_today), 'neutral')}
+          ${kpi('Flagged transactions', fmt.number(k.flagged_transactions), k.flagged_transactions > 0 ? 'warn' : 'neutral')}
+          ${kpi('Critical alerts open', fmt.number(k.critical_open), k.critical_open > 0 ? 'bad' : 'good', '/alerts.html?risk=CRITICAL')}
+          ${kpi('Pending reviews', fmt.number(k.pending_reviews), k.pending_reviews > 0 ? 'pending' : 'neutral', '/alerts.html')}
         </section>
 
         <section class="mb-8 grid gap-4 md:grid-cols-3">
-          ${kpi('Locked accounts', fmt.number(k.locked_accounts), k.locked_accounts > 0 ? 'rose' : 'slate')}
-          ${kpi('Total transferred', fmt.money(k.total_transferred), 'slate')}
-          ${kpi('Audit events recorded', fmt.number(k.total_audits), 'slate', '/audits.html')}
+          ${kpi('Locked accounts', fmt.number(k.locked_accounts), k.locked_accounts > 0 ? 'bad' : 'neutral')}
+          ${kpi('Total transferred', fmt.money(k.total_transferred), 'neutral')}
+          ${kpi('Audit events recorded', fmt.number(k.total_audits), 'neutral', '/audits.html')}
         </section>
 
         <!-- Risk summary -->
         <section class="mb-8">
-          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Risk summary</h2>
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-stone-500">Risk summary</h2>
           <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-            ${riskTile('CRITICAL', d.risk_summary.CRITICAL, 'rose')}
-            ${riskTile('HIGH', d.risk_summary.HIGH, 'orange')}
-            ${riskTile('MEDIUM', d.risk_summary.MEDIUM, 'amber')}
-            ${riskTile('LOW', d.risk_summary.LOW, 'emerald')}
+            ${riskTile('CRITICAL', d.risk_summary.CRITICAL)}
+            ${riskTile('HIGH', d.risk_summary.HIGH)}
+            ${riskTile('MEDIUM', d.risk_summary.MEDIUM)}
+            ${riskTile('LOW', d.risk_summary.LOW)}
           </div>
         </section>
 
@@ -95,7 +99,7 @@
         <!-- Feed + top users -->
         <section class="grid gap-6 lg:grid-cols-2">
           ${panel('Live activity feed', `
-            <div class="-mx-5 -mb-5 max-h-96 divide-y divide-slate-800 overflow-y-auto">
+            <div class="-mx-5 -mb-5 max-h-96 divide-y divide-stone-200 overflow-y-auto">
               ${d.recent_feed.map(feedRow).join('')}
             </div>`)}
 
@@ -110,31 +114,51 @@
 
     // ------------------------------------------------------------ components
 
-    function kpi(label, value, color, href = null) {
+    // On a light page a number only needs colour when it means something.
+    // Neutral counts stay ink; anything a reader should react to gets a hue.
+    const TONE = {
+      neutral:  'text-ink',
+      good:     'text-forest-700',
+      watch:    'text-gold-600',
+      warn:     'text-orange-600',
+      bad:      'text-rose-600',
+      pending:  'text-violet-700',
+    };
+
+    function kpi(label, value, tone, href = null) {
       const tag = href ? 'a' : 'div';
       const attrs = href ? `href="${href}"` : '';
-      const hover = href ? 'transition hover:border-slate-700 hover:bg-slate-800/50' : '';
+      const hover = href ? 'transition hover:border-forest-200 hover:shadow-md' : '';
 
       return `
-        <${tag} ${attrs} class="block rounded-xl border border-slate-800 bg-slate-900 p-4 ${hover}">
-          <p class="text-xs font-medium uppercase tracking-wide text-slate-500">${label}</p>
-          <p class="mt-2 text-2xl font-bold text-${color}-${color === 'slate' ? '100' : '400'}">${value}</p>
+        <${tag} ${attrs} class="block rounded-xl border border-stone-200 bg-white p-4 shadow-sm ${hover}">
+          <p class="text-xs font-medium uppercase tracking-wide text-stone-500">${label}</p>
+          <p class="mt-2 font-display text-3xl font-semibold ${TONE[tone]}">${value}</p>
         </${tag}>`;
     }
 
-    function riskTile(level, count, color) {
+    const RISK_TILE = {
+      CRITICAL: 'border-rose-200   bg-rose-50    text-rose-700   hover:bg-rose-100',
+      HIGH:     'border-orange-200 bg-orange-50  text-orange-700 hover:bg-orange-100',
+      MEDIUM:   'border-gold-100   bg-gold-50    text-gold-600   hover:bg-gold-100',
+      LOW:      'border-forest-200 bg-forest-50  text-forest-700 hover:bg-forest-100',
+    };
+
+    function riskTile(level, count) {
       return `
         <a href="/audits.html?risk_level=${level}"
-           class="rounded-xl border border-${color}-500/20 bg-${color}-500/5 p-4 transition hover:bg-${color}-500/10">
-          <p class="text-xs font-bold uppercase tracking-wide text-${color}-400">${level}</p>
-          <p class="mt-2 text-3xl font-bold text-${color}-400">${fmt.number(count)}</p>
+           class="rounded-xl border p-4 transition ${RISK_TILE[level]}">
+          <p class="text-xs font-bold uppercase tracking-wide">${level}</p>
+          <p class="mt-2 font-display text-4xl font-semibold">${fmt.number(count)}</p>
         </a>`;
     }
 
+    // min-w-0 matters: a grid item defaults to min-width:auto and refuses to
+    // shrink below its canvas, which pushes the whole page into a sideways scroll.
     function panel(title, inner) {
       return `
-        <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
-          <h3 class="mb-4 text-sm font-semibold text-slate-300">${title}</h3>
+        <div class="min-w-0 overflow-hidden rounded-xl border border-stone-200 bg-white p-5">
+          <h3 class="mb-4 text-sm font-semibold text-stone-700">${title}</h3>
           ${inner}
         </div>`;
     }
@@ -142,11 +166,11 @@
     function feedRow(e) {
       return `
         <a href="/audits.html?search=${encodeURIComponent(e.audit_ref)}"
-           class="flex items-start gap-3 px-5 py-3 transition hover:bg-slate-800/50">
+           class="flex items-start gap-3 px-5 py-3 transition hover:bg-stone-50">
           <div class="mt-0.5">${riskBadge(e.risk_level)}</div>
           <div class="min-w-0 flex-1">
-            <p class="truncate text-sm text-slate-300">${esc(e.description)}</p>
-            <p class="mt-0.5 text-xs text-slate-600">
+            <p class="truncate text-sm text-stone-700">${esc(e.description)}</p>
+            <p class="mt-0.5 text-xs text-stone-400">
               <span class="font-mono">${e.audit_ref}</span>
               ${e.username ? ` · ${esc(e.username)}` : ''} · ${fmt.ago(e.created_at)}
             </p>
@@ -155,25 +179,30 @@
     }
 
     function userRow(u) {
-      const color = u.peak_risk >= 95 ? 'rose' : u.peak_risk >= 70 ? 'orange' : u.peak_risk >= 40 ? 'amber' : 'emerald';
+      const tone = u.peak_risk >= 95 ? 'bad'
+                 : u.peak_risk >= 70 ? 'warn'
+                 : u.peak_risk >= 40 ? 'watch' : 'good';
       return `
         <a href="/timeline.html?user=${u.id}"
-           class="flex items-center justify-between rounded-lg px-3 py-2 transition hover:bg-slate-800">
+           class="flex items-center justify-between rounded-lg px-3 py-2 transition hover:bg-stone-50">
           <div class="min-w-0">
-            <p class="truncate text-sm font-medium text-slate-200">${esc(u.full_name)}</p>
-            <p class="text-xs text-slate-600">@${esc(u.username)} · ${fmt.number(u.events)} events</p>
+            <p class="truncate text-sm font-medium text-ink">${esc(u.full_name)}</p>
+            <p class="text-xs text-stone-500">@${esc(u.username)} · ${fmt.number(u.events)} events</p>
           </div>
           <div class="ml-3 shrink-0 text-right">
-            <p class="text-xs text-slate-600">peak risk</p>
-            <p class="text-sm font-bold text-${color}-400">${u.peak_risk}</p>
+            <p class="text-xs text-stone-400">peak risk</p>
+            <p class="text-sm font-bold ${TONE[tone]}">${u.peak_risk}</p>
           </div>
         </a>`;
     }
 
     // ---------------------------------------------------------------- charts
 
-    const GRID = 'rgba(148, 163, 184, 0.08)';
-    const TICK = '#64748b';
+    const GRID = 'rgba(28, 25, 23, 0.06)';
+    const TICK = '#78716c';
+    const FOREST = '#1f6f5c';
+    const GOLDEN = '#c58b25';
+    const ROSE = '#e11d48';
 
     const BASE_OPTIONS = {
       responsive: true,
@@ -198,16 +227,16 @@
             {
               label: 'Successful',
               data: d.login_trend.map((r) => r.successful),
-              borderColor: '#38bdf8',
-              backgroundColor: 'rgba(56, 189, 248, 0.1)',
+              borderColor: FOREST,
+              backgroundColor: 'rgba(31, 111, 92, 0.10)',
               fill: true,
               tension: 0.3,
             },
             {
               label: 'Failed',
               data: d.login_trend.map((r) => r.failed),
-              borderColor: '#fb7185',
-              backgroundColor: 'rgba(251, 113, 133, 0.1)',
+              borderColor: ROSE,
+              backgroundColor: 'rgba(225, 29, 72, 0.08)',
               fill: true,
               tension: 0.3,
             },
@@ -223,9 +252,10 @@
           datasets: [{
             label: 'Volume (KES)',
             data: d.transaction_trend.map((r) => r.volume),
-            backgroundColor: 'rgba(139, 92, 246, 0.5)',
-            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(197, 139, 37, 0.35)',
+            borderColor: GOLDEN,
             borderWidth: 1,
+            borderRadius: 3,
           }],
         },
         options: BASE_OPTIONS,
@@ -237,8 +267,8 @@
           labels: d.category_breakdown.map((r) => r.category),
           datasets: [{
             data: d.category_breakdown.map((r) => r.count),
-            backgroundColor: ['#38bdf8', '#8b5cf6', '#fb7185', '#fbbf24', '#34d399', '#f97316', '#94a3b8'],
-            borderColor: '#0f172a',
+            backgroundColor: ['#1f6f5c', '#c58b25', '#e11d48', '#f97316', '#8ec7ad', '#7c3aed', '#a8a29e'],
+            borderColor: '#ffffff',
             borderWidth: 2,
           }],
         },
@@ -255,9 +285,10 @@
           datasets: [{
             label: 'Count',
             data: d.transactions_by_type.map((r) => r.count),
-            backgroundColor: 'rgba(56, 189, 248, 0.5)',
-            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(31, 111, 92, 0.35)',
+            borderColor: FOREST,
             borderWidth: 1,
+            borderRadius: 3,
           }],
         },
         options: { ...BASE_OPTIONS, indexAxis: 'y', plugins: { legend: { display: false } } },

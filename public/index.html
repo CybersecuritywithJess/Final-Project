@@ -1,28 +1,733 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Financial Audit Tracking System</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <title>Sentinel Bank — Banking that audits itself</title>
+  <meta name="description" content="A demo bank where every login, every shilling and every admin action is automatically recorded, risk-scored and surfaced to auditors." />
 
-  <div class="flex min-h-screen items-center justify-center">
-    <div class="text-center">
-      <div class="mb-4 text-4xl">🛡️</div>
-      <div class="mx-auto h-5 w-5 animate-spin rounded-full border-2 border-slate-800 border-t-sky-400"></div>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Fraunces', 'Georgia', 'serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            forest: {
+              50:  '#f0f7f4', 100: '#dbeee5', 200: '#b9ddcd',
+              600: '#1f6f5c', 700: '#155445', 800: '#124436', 900: '#0f382d',
+            },
+            gold: { 400: '#d9a441', 500: '#c58b25', 600: '#a67018' },
+            ink: '#1a1a18',
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    html { scroll-behavior: smooth; }
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+    /* Hand-drawn underline under the headline's key phrase. */
+    .swoosh { position: relative; white-space: nowrap; }
+    .swoosh svg { position: absolute; left: 0; bottom: -.35em; width: 100%; height: .38em; }
+
+    .cinput {
+      width: 100%;
+      border-radius: .5rem;
+      border: 1px solid #d6d3d1;
+      background: #fff;
+      padding: .625rem .875rem;
+      font-size: .875rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .cinput::placeholder { color: #a8a29e; }
+    .cinput:focus { border-color: #155445; box-shadow: 0 0 0 2px rgb(21 84 69 / .15); }
+  </style>
+</head>
+
+<body class="bg-[#fdfcfa] font-sans text-ink antialiased">
+
+<!-- ─────────────────────────────────────────────── nav -->
+<header id="nav" class="sticky top-0 z-50 border-b border-stone-200/70 bg-[#fdfcfa]/85 backdrop-blur">
+  <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+
+    <a href="#top" class="flex items-center gap-2.5">
+      <span class="grid h-9 w-9 place-items-center rounded-lg bg-forest-800 text-sm font-bold text-white">S</span>
+      <span class="font-display text-lg font-semibold tracking-tight">Sentinel<span class="text-forest-700">Bank</span></span>
+    </a>
+
+    <nav class="hidden items-center gap-8 md:flex">
+      <a href="#about" class="text-sm font-medium text-stone-600 transition hover:text-forest-800">About us</a>
+      <a href="#how" class="text-sm font-medium text-stone-600 transition hover:text-forest-800">How it works</a>
+      <a href="#features" class="text-sm font-medium text-stone-600 transition hover:text-forest-800">Features</a>
+      <a href="#security" class="text-sm font-medium text-stone-600 transition hover:text-forest-800">Security</a>
+      <a href="#contact" class="text-sm font-medium text-stone-600 transition hover:text-forest-800">Contact us</a>
+    </nav>
+
+    <!-- The only two doors into the app live here, top right. -->
+    <div class="flex items-center gap-2" id="nav-actions">
+      <a href="/login.html"
+         class="rounded-full border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700 transition hover:border-forest-700 hover:text-forest-800">
+        Log in
+      </a>
+      <a href="/register.html"
+         class="rounded-full bg-forest-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-forest-900">
+        Sign up
+      </a>
     </div>
   </div>
+</header>
 
-  <script src="/assets/js/api.js"></script>
-  <script>
-    // Send people wherever their role belongs, or to the login page.
-    API.me()
-      .then(({ user }) => {
-        window.location.replace(user.role === 'customer' ? '/bank.html' : '/dashboard.html');
-      })
-      .catch(() => window.location.replace('/login.html'));
-  </script>
+<main id="top">
+
+  <!-- ─────────────────────────────────────────── hero -->
+  <section class="relative overflow-hidden">
+    <!-- soft paper texture behind the hero -->
+    <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(31,111,92,0.07),transparent_60%)]"></div>
+
+    <div class="relative mx-auto grid max-w-6xl items-center gap-14 px-6 py-20 lg:grid-cols-2 lg:py-28">
+
+      <div class="reveal">
+        <p class="mb-5 inline-flex items-center gap-2 rounded-full border border-forest-200 bg-forest-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-forest-700">
+          <span class="relative flex h-1.5 w-1.5">
+            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-forest-600 opacity-75"></span>
+            <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-forest-600"></span>
+          </span>
+          Live audit engine
+        </p>
+
+        <h1 class="font-display text-5xl font-semibold leading-[1.08] tracking-tight text-ink lg:text-6xl">
+          Banking that
+          <span class="swoosh text-forest-800">audits itself
+            <svg viewBox="0 0 300 12" fill="none" preserveAspectRatio="none">
+              <path d="M2 8.5C48 3.5 122 2 298 5.5" stroke="#d9a441" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+          </span>
+        </h1>
+
+        <p class="mt-7 max-w-lg text-lg leading-relaxed text-stone-600">
+          Real banks don't have auditors collecting logs by hand. Sentinel Bank
+          records every login, every shilling and every admin click on its own —
+          then scores the risk and tells someone.
+        </p>
+
+        <div class="mt-9 flex flex-wrap items-center gap-4">
+          <a href="/register.html"
+             class="rounded-full bg-forest-800 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-forest-800/15 transition hover:-translate-y-0.5 hover:bg-forest-900">
+            Open an account
+          </a>
+          <a href="/login.html"
+             class="group inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white px-7 py-3.5 text-sm font-semibold text-stone-800 transition hover:border-forest-700 hover:text-forest-800">
+            Log in
+            <span class="transition group-hover:translate-x-0.5">→</span>
+          </a>
+        </div>
+
+        <p class="mt-6 text-xs text-stone-500">
+          Try the auditor view — username <code class="rounded bg-stone-100 px-1.5 py-0.5 font-semibold text-forest-800">auditor</code>,
+          password <code class="rounded bg-stone-100 px-1.5 py-0.5 font-semibold text-forest-800">Password123!</code>
+        </p>
+      </div>
+
+      <!-- hero image + floating alert card -->
+      <div class="reveal relative">
+        <div class="absolute -right-6 -top-6 hidden h-40 w-40 rounded-full bg-gold-400/15 blur-2xl lg:block"></div>
+
+        <img src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1100&q=80"
+             alt="An analyst reviewing financial activity with a colleague"
+             class="relative w-full rounded-2xl object-cover shadow-2xl shadow-stone-900/15 ring-1 ring-stone-900/5"
+             style="aspect-ratio: 4/3;" />
+
+        <!-- the product, shown rather than described -->
+        <div class="absolute -bottom-8 -left-6 w-[19rem] rounded-xl border border-stone-200 bg-white p-4 shadow-xl">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold tracking-wide text-rose-700 ring-1 ring-rose-200">CRITICAL</span>
+            <span class="font-mono text-[10px] text-stone-400">ALR-000002</span>
+          </div>
+          <p class="text-sm font-semibold text-ink">Login from a new country</p>
+          <p class="mt-1 text-xs leading-relaxed text-stone-500">
+            Lagos, Nigeria — the account's home country is Kenya.
+            Impossible-travel risk.
+          </p>
+          <div class="mt-3 flex items-center gap-1.5 border-t border-stone-100 pt-2.5">
+            <span class="h-1.5 w-1.5 rounded-full bg-forest-600"></span>
+            <span class="text-[11px] text-stone-400">Raised automatically · 3 seconds after the login</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────── stats -->
+  <section class="border-y border-stone-200 bg-white">
+    <div class="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-6 py-12 md:grid-cols-4">
+      <div class="reveal text-center">
+        <p class="font-display text-4xl font-semibold text-forest-800">31</p>
+        <p class="mt-1 text-sm text-stone-500">event types tracked</p>
+      </div>
+      <div class="reveal text-center">
+        <p class="font-display text-4xl font-semibold text-forest-800">8</p>
+        <p class="mt-1 text-sm text-stone-500">fraud rules running live</p>
+      </div>
+      <div class="reveal text-center">
+        <p class="font-display text-4xl font-semibold text-forest-800">7</p>
+        <p class="mt-1 text-sm text-stone-500">compliance categories</p>
+      </div>
+      <div class="reveal text-center">
+        <p class="font-display text-4xl font-semibold text-forest-800">0</p>
+        <p class="mt-1 text-sm text-stone-500">actions that escape the log</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────── how it works -->
+  <section id="how" class="mx-auto max-w-6xl px-6 py-24">
+    <div class="reveal mx-auto mb-16 max-w-2xl text-center">
+      <p class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-gold-600">How it works</p>
+      <h2 class="font-display text-4xl font-semibold leading-tight text-ink">
+        The bank generates the evidence.<br />The auditor reads it.
+      </h2>
+      <p class="mt-5 text-lg leading-relaxed text-stone-600">
+        Nothing is collected by hand. Bank code cannot write to the audit log
+        directly — it hands the event to the engine, and the engine decides what
+        it means.
+      </p>
+    </div>
+
+    <div class="grid gap-6 md:grid-cols-3">
+      <div class="reveal relative rounded-2xl border border-stone-200 bg-white p-8 shadow-sm">
+        <span class="font-display text-5xl font-semibold text-stone-200">01</span>
+        <h3 class="mt-4 font-display text-xl font-semibold text-ink">The Demo Bank acts</h3>
+        <p class="mt-3 text-sm leading-relaxed text-stone-600">
+          A customer logs in, deposits, withdraws, transfers, pays a bill, changes
+          a password. An admin edits a user. Every one of these is an action worth
+          remembering.
+        </p>
+      </div>
+
+      <div class="reveal relative rounded-2xl border border-forest-200 bg-forest-50 p-8 shadow-sm">
+        <span class="font-display text-5xl font-semibold text-forest-200">02</span>
+        <h3 class="mt-4 font-display text-xl font-semibold text-forest-900">The Audit Engine judges</h3>
+        <p class="mt-3 text-sm leading-relaxed text-forest-800/80">
+          It files the event under a compliance category, scores it 0–100, and
+          escalates it on context. One failed login is a typo. Five is an attack.
+        </p>
+      </div>
+
+      <div class="reveal relative rounded-2xl border border-stone-200 bg-white p-8 shadow-sm">
+        <span class="font-display text-5xl font-semibold text-stone-200">03</span>
+        <h3 class="mt-4 font-display text-xl font-semibold text-ink">The Auditor investigates</h3>
+        <p class="mt-3 text-sm leading-relaxed text-stone-600">
+          Alerts arrive already triaged. The auditor works the queue, writes
+          findings, and closes the case — and their own work is audited too.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────── features -->
+  <section id="features" class="border-y border-stone-200 bg-white py-24">
+    <div class="mx-auto max-w-6xl px-6">
+
+      <div class="reveal mb-16 grid items-end gap-8 md:grid-cols-2">
+        <div>
+          <p class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-gold-600">What's inside</p>
+          <h2 class="font-display text-4xl font-semibold leading-tight text-ink">
+            Everything an audit team actually asks for
+          </h2>
+        </div>
+        <p class="text-lg leading-relaxed text-stone-600">
+          Not a log viewer. A working investigation platform, with the thresholds
+          in the hands of the people who own the risk.
+        </p>
+      </div>
+
+      <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+
+        <article class="reveal group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:shadow-lg">
+          <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=700&q=80"
+               alt="Analytics dashboard on a screen"
+               class="h-44 w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+          <div class="p-6">
+            <h3 class="font-display text-lg font-semibold text-ink">Live audit dashboard</h3>
+            <p class="mt-2 text-sm leading-relaxed text-stone-600">
+              Logins, failed logins, flagged transactions, critical alerts and
+              pending reviews — with 14-day trends and a risk breakdown.
+            </p>
+          </div>
+        </article>
+
+        <article class="reveal group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:shadow-lg">
+          <img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=700&q=80"
+               alt="Financial charts and figures"
+               class="h-44 w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+          <div class="p-6">
+            <h3 class="font-display text-lg font-semibold text-ink">Risk scoring</h3>
+            <p class="mt-2 text-sm leading-relaxed text-stone-600">
+              Every event gets a level and a score. A 600,000 withdrawal is not
+              the same event as a 600 one, and the log knows it.
+            </p>
+          </div>
+        </article>
+
+        <article class="reveal group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:shadow-lg">
+          <img src="https://images.unsplash.com/photo-1573164713988-8665fc963095?w=700&q=80"
+               alt="Security operations analyst at work"
+               class="h-44 w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+          <div class="p-6">
+            <h3 class="font-display text-lg font-semibold text-ink">Fraud detection</h3>
+            <p class="mt-2 text-sm leading-relaxed text-stone-600">
+              Brute force, impossible travel, account draining, structuring,
+              new devices, daily limits. Eight rules, all tunable from the admin panel.
+            </p>
+          </div>
+        </article>
+
+        <article class="reveal group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:shadow-lg">
+          <img src="https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=700&q=80"
+               alt="Investigator taking notes on a case"
+               class="h-44 w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+          <div class="p-6">
+            <h3 class="font-display text-lg font-semibold text-ink">Investigation workflow</h3>
+            <p class="mt-2 text-sm leading-relaxed text-stone-600">
+              Cases move from new to under investigation to confirmed fraud —
+              or to false positive — with findings and recommendations attached.
+            </p>
+          </div>
+        </article>
+
+        <article class="reveal group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:shadow-lg">
+          <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=700&q=80"
+               alt="Reports and data on a laptop"
+               class="h-44 w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+          <div class="p-6">
+            <h3 class="font-display text-lg font-semibold text-ink">Search &amp; export</h3>
+            <p class="mt-2 text-sm leading-relaxed text-stone-600">
+              Filter by user, risk, IP, device, country, amount or date — then
+              take the whole result set away as CSV for the report.
+            </p>
+          </div>
+        </article>
+
+        <article class="reveal group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition hover:shadow-lg">
+          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=700&q=80"
+               alt="Portrait of a customer"
+               class="h-44 w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+          <div class="p-6">
+            <h3 class="font-display text-lg font-semibold text-ink">Customer timelines</h3>
+            <p class="mt-2 text-sm leading-relaxed text-stone-600">
+              One page per customer: their whole history in order, the devices
+              they use, their balances and their peak risk score.
+            </p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────── security -->
+  <section id="security" class="mx-auto max-w-6xl px-6 py-24">
+    <div class="grid items-center gap-16 lg:grid-cols-2">
+
+      <div class="reveal relative order-2 lg:order-1">
+        <img src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1000&q=80"
+             alt="Secure systems and access controls"
+             class="w-full rounded-2xl object-cover shadow-xl ring-1 ring-stone-900/5"
+             style="aspect-ratio: 5/4;" />
+        <div class="absolute -bottom-6 -right-6 hidden rounded-xl bg-forest-800 px-6 py-5 text-white shadow-xl lg:block">
+          <p class="font-display text-3xl font-semibold">bcrypt</p>
+          <p class="text-xs text-forest-100/80">cost 12 · never reversible</p>
+        </div>
+      </div>
+
+      <div class="reveal order-1 lg:order-2">
+        <p class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-gold-600">Security</p>
+        <h2 class="font-display text-4xl font-semibold leading-tight text-ink">
+          Even the auditors are watched
+        </h2>
+        <p class="mt-5 text-lg leading-relaxed text-stone-600">
+          An audit system that its own staff can quietly edit is worth nothing.
+          Admin and auditor actions are recorded exactly like a customer's.
+        </p>
+
+        <ul class="mt-8 space-y-4">
+          <li class="flex gap-3">
+            <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-forest-100 text-xs font-bold text-forest-700">✓</span>
+            <p class="text-sm leading-relaxed text-stone-700">
+              <span class="font-semibold text-ink">Passwords hashed with bcrypt.</span>
+              Never stored, never recoverable, not even by an administrator.
+            </p>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-forest-100 text-xs font-bold text-forest-700">✓</span>
+            <p class="text-sm leading-relaxed text-stone-700">
+              <span class="font-semibold text-ink">Every query is a prepared statement.</span>
+              There is no string-concatenated SQL anywhere in the codebase.
+            </p>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-forest-100 text-xs font-bold text-forest-700">✓</span>
+            <p class="text-sm leading-relaxed text-stone-700">
+              <span class="font-semibold text-ink">Refused access is still evidence.</span>
+              A customer who pokes at the auditor's API is turned away — and logged
+              as a critical event.
+            </p>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-forest-100 text-xs font-bold text-forest-700">✓</span>
+            <p class="text-sm leading-relaxed text-stone-700">
+              <span class="font-semibold text-ink">Brute force locks the door.</span>
+              Five wrong passwords and the account closes itself, with a critical
+              alert already waiting.
+            </p>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────── about -->
+  <section id="about" class="border-y border-stone-200 bg-white py-24">
+    <div class="mx-auto max-w-6xl px-6">
+      <div class="grid items-center gap-16 lg:grid-cols-2">
+
+        <div class="reveal">
+          <p class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-gold-600">About us</p>
+          <h2 class="font-display text-4xl font-semibold leading-tight text-ink">
+            Built to answer one question
+          </h2>
+
+          <p class="mt-6 text-lg leading-relaxed text-stone-600">
+            <em class="font-display not-italic text-ink">"Who did this, and when?"</em>
+            It sounds simple. In most systems it is not, because the logging was an
+            afterthought — bolted on late, easy to bypass, and impossible to search
+            when it matters.
+          </p>
+
+          <p class="mt-5 leading-relaxed text-stone-600">
+            Sentinel Bank was built the other way around. The audit trail came
+            first, and the bank was built on top of it. The result is a system where
+            the honest answer to "could someone have done this without us knowing?"
+            is simply no.
+          </p>
+
+          <p class="mt-5 leading-relaxed text-stone-600">
+            It brings together the things a real financial institution needs in one
+            place: web development, database design, access control, fraud
+            detection, security monitoring and the audit process itself.
+          </p>
+
+          <div class="mt-10 grid grid-cols-3 gap-6 border-t border-stone-200 pt-8">
+            <div>
+              <p class="font-display text-2xl font-semibold text-forest-800">Customer</p>
+              <p class="mt-1 text-xs leading-relaxed text-stone-500">Banks normally. Never sees the audit system.</p>
+            </div>
+            <div>
+              <p class="font-display text-2xl font-semibold text-forest-800">Auditor</p>
+              <p class="mt-1 text-xs leading-relaxed text-stone-500">Investigates. Cannot move a single shilling.</p>
+            </div>
+            <div>
+              <p class="font-display text-2xl font-semibold text-forest-800">Admin</p>
+              <p class="mt-1 text-xs leading-relaxed text-stone-500">Owns the users and the risk thresholds.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="reveal relative">
+          <img src="https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1000&q=80"
+               alt="Two colleagues shaking hands after a review"
+               class="w-full rounded-2xl object-cover shadow-xl ring-1 ring-stone-900/5"
+               style="aspect-ratio: 4/3;" />
+
+          <div class="mt-6 rounded-2xl border border-stone-200 bg-[#fdfcfa] p-6">
+            <p class="font-display text-lg italic leading-relaxed text-stone-700">
+              "Separation of duties isn't a feature you add. It's the shape of the
+              thing you build."
+            </p>
+            <p class="mt-3 text-xs font-semibold uppercase tracking-wider text-stone-400">
+              The principle behind the three roles
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────── faq -->
+  <section class="mx-auto max-w-4xl px-6 py-24">
+    <div class="reveal mb-14 text-center">
+      <p class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-gold-600">Questions</p>
+      <h2 class="font-display text-4xl font-semibold leading-tight text-ink">
+        The things people ask first
+      </h2>
+    </div>
+
+    <div class="reveal divide-y divide-stone-200 border-y border-stone-200">
+      <details class="group py-5" open>
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-4">
+          <span class="font-display text-lg font-semibold text-ink">Is any of this real money?</span>
+          <span class="text-2xl font-light text-stone-400 transition group-open:rotate-45">+</span>
+        </summary>
+        <p class="mt-3 max-w-2xl leading-relaxed text-stone-600">
+          No. Sentinel Bank is a demonstration system. The accounts, the balances
+          and the transfers are all simulated — but the audit trail, the risk
+          scoring and the fraud detection running behind them are real code doing
+          real work.
+        </p>
+      </details>
+
+      <details class="group py-5">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-4">
+          <span class="font-display text-lg font-semibold text-ink">Can an administrator quietly delete an audit record?</span>
+          <span class="text-2xl font-light text-stone-400 transition group-open:rotate-45">+</span>
+        </summary>
+        <p class="mt-3 max-w-2xl leading-relaxed text-stone-600">
+          No. There is no endpoint in the entire system that deletes an audit
+          event — not for an admin, not for anyone. Deleting a <em>user</em> is
+          possible, but the act of deleting them is written to the log first, and
+          the record of everything they ever did survives them.
+        </p>
+      </details>
+
+      <details class="group py-5">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-4">
+          <span class="font-display text-lg font-semibold text-ink">What happens if a fraud rule is wrong?</span>
+          <span class="text-2xl font-light text-stone-400 transition group-open:rotate-45">+</span>
+        </summary>
+        <p class="mt-3 max-w-2xl leading-relaxed text-stone-600">
+          It gets closed as a false positive, with the auditor's reasoning attached
+          — which is how a real security team works. If the rule is wrong too often,
+          an administrator retunes its threshold from the admin panel and the engine
+          behaves differently on the very next transaction.
+        </p>
+      </details>
+
+      <details class="group py-5">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-4">
+          <span class="font-display text-lg font-semibold text-ink">Who can see the audit log?</span>
+          <span class="text-2xl font-light text-stone-400 transition group-open:rotate-45">+</span>
+        </summary>
+        <p class="mt-3 max-w-2xl leading-relaxed text-stone-600">
+          Only auditors and administrators. A customer who goes looking for it is
+          turned away — and the attempt is recorded as a critical event, which is
+          rather the point.
+        </p>
+      </details>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────── contact -->
+  <section id="contact" class="border-t border-stone-200 bg-white py-24">
+    <div class="mx-auto max-w-6xl px-6">
+
+      <div class="grid gap-16 lg:grid-cols-2">
+
+        <div class="reveal">
+          <p class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-gold-600">Contact us</p>
+          <h2 class="font-display text-4xl font-semibold leading-tight text-ink">
+            Talk to the team
+          </h2>
+          <p class="mt-5 text-lg leading-relaxed text-stone-600">
+            Questions about how the audit engine works, the detection rules, or the
+            design decisions behind it? Send a note and we'll come back to you.
+          </p>
+
+          <div class="mt-10 space-y-6">
+            <div class="flex gap-4">
+              <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-forest-50 text-lg">✉️</span>
+              <div>
+                <p class="text-sm font-semibold text-ink">Email</p>
+                <p class="text-sm text-stone-600">hello@sentinelbank.co.ke</p>
+                <p class="text-xs text-stone-400">We reply within one working day</p>
+              </div>
+            </div>
+
+            <div class="flex gap-4">
+              <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-forest-50 text-lg">📞</span>
+              <div>
+                <p class="text-sm font-semibold text-ink">Phone</p>
+                <p class="text-sm text-stone-600">+254 700 000 000</p>
+                <p class="text-xs text-stone-400">Monday to Friday, 8am – 5pm EAT</p>
+              </div>
+            </div>
+
+            <div class="flex gap-4">
+              <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-forest-50 text-lg">📍</span>
+              <div>
+                <p class="text-sm font-semibold text-ink">Office</p>
+                <p class="text-sm text-stone-600">Westlands, Nairobi, Kenya</p>
+                <p class="text-xs text-stone-400">Visits by appointment</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-10 rounded-xl border border-stone-200 bg-[#fdfcfa] p-5">
+            <p class="text-sm font-semibold text-ink">Reporting something urgent?</p>
+            <p class="mt-1.5 text-sm leading-relaxed text-stone-600">
+              If you think an account has been taken over, don't use this form —
+              log in and change the password immediately. The system will have
+              already flagged the activity.
+            </p>
+          </div>
+        </div>
+
+        <div class="reveal">
+          <form id="contact-form" class="rounded-2xl border border-stone-200 bg-[#fdfcfa] p-8 shadow-sm">
+            <div class="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label class="mb-1.5 block text-sm font-semibold text-stone-700">Your name</label>
+                <input id="c-name" required placeholder="Jane Mwangi" class="cinput" />
+              </div>
+              <div>
+                <label class="mb-1.5 block text-sm font-semibold text-stone-700">Email</label>
+                <input id="c-email" type="email" required placeholder="jane@example.com" class="cinput" />
+              </div>
+            </div>
+
+            <div class="mt-5">
+              <label class="mb-1.5 block text-sm font-semibold text-stone-700">Subject</label>
+              <select id="c-subject" class="cinput">
+                <option>A question about the audit engine</option>
+                <option>A question about the fraud rules</option>
+                <option>Reporting suspicious activity</option>
+                <option>Something else</option>
+              </select>
+            </div>
+
+            <div class="mt-5">
+              <label class="mb-1.5 block text-sm font-semibold text-stone-700">Message</label>
+              <textarea id="c-message" rows="5" required
+                        placeholder="Tell us what you'd like to know…" class="cinput"></textarea>
+            </div>
+
+            <button type="submit" id="c-submit"
+                    class="mt-6 w-full rounded-full bg-forest-800 px-6 py-3.5 text-sm font-semibold text-white
+                           shadow-lg shadow-forest-800/15 transition hover:bg-forest-900">
+              Send message
+            </button>
+
+            <p id="c-status" class="mt-4 hidden rounded-lg bg-forest-50 px-4 py-3 text-center text-sm text-forest-800"></p>
+
+            <p class="mt-4 text-center text-xs leading-relaxed text-stone-400">
+              This is a demonstration site — the form does not send email.
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────── cta -->
+  <section class="relative overflow-hidden bg-forest-800 py-20">
+    <div class="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-gold-400/10 blur-3xl"></div>
+    <div class="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-forest-600/30 blur-3xl"></div>
+
+    <div class="reveal relative mx-auto max-w-2xl px-6 text-center">
+      <h2 class="font-display text-4xl font-semibold leading-tight text-white">
+        See it catch something
+      </h2>
+      <p class="mt-5 text-lg leading-relaxed text-forest-100/80">
+        Open an account, withdraw more than five hundred thousand, and watch the
+        alert land in the auditor's queue before you have finished reading this.
+      </p>
+
+      <div class="mt-9 flex flex-wrap justify-center gap-4">
+        <a href="/register.html"
+           class="rounded-full bg-white px-7 py-3.5 text-sm font-semibold text-forest-900 shadow-lg transition hover:-translate-y-0.5">
+          Open an account
+        </a>
+        <a href="/login.html"
+           class="rounded-full border border-forest-600 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-forest-700">
+          Log in as an auditor
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ─────────────────────────────────────────── footer -->
+<footer class="border-t border-stone-200 bg-[#fdfcfa]">
+  <div class="mx-auto max-w-6xl px-6 py-12">
+    <div class="flex flex-col items-center justify-between gap-6 md:flex-row">
+
+      <div class="flex items-center gap-2.5">
+        <span class="grid h-8 w-8 place-items-center rounded-lg bg-forest-800 text-xs font-bold text-white">S</span>
+        <span class="font-display font-semibold">Sentinel<span class="text-forest-700">Bank</span></span>
+      </div>
+
+      <p class="text-center text-sm text-stone-500">
+        A demonstration system. No real money moves here.
+      </p>
+
+      <div class="flex flex-wrap justify-center gap-6 text-sm text-stone-500">
+        <a href="#about" class="transition hover:text-forest-800">About us</a>
+        <a href="#how" class="transition hover:text-forest-800">How it works</a>
+        <a href="#security" class="transition hover:text-forest-800">Security</a>
+        <a href="#contact" class="transition hover:text-forest-800">Contact us</a>
+        <a href="/login.html" class="transition hover:text-forest-800">Log in</a>
+        <a href="/register.html" class="font-semibold text-forest-800 transition hover:underline">Sign up</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="/assets/js/api.js"></script>
+<script>
+  // Someone already signed in shouldn't be nagged to log in again. whoami()
+  // rather than me(), because being signed out here is normal, not an error.
+  API.whoami().then((user) => {
+    if (!user) return;   // the default Log in / Open an account buttons are right
+
+    const home = user.role === 'customer' ? '/bank.html' : '/dashboard.html';
+    document.getElementById('nav-actions').innerHTML = `
+      <span class="hidden text-sm text-stone-500 sm:inline">Hi, ${user.full_name.split(' ')[0]}</span>
+      <a href="${home}"
+         class="rounded-full bg-forest-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-forest-900">
+        Go to my ${user.role === 'customer' ? 'bank' : 'dashboard'} →
+      </a>`;
+  });
+
+  // Fade sections in as they arrive. Cheap, and it makes the page feel built.
+  const observer = new IntersectionObserver(
+    (entries) => entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
+        observer.unobserve(entry.target);
+      }
+    }),
+    { threshold: 0.12 },
+  );
+
+  document.querySelectorAll('.reveal').forEach((el, i) => {
+    el.style.transitionDelay = `${(i % 3) * 90}ms`;
+    observer.observe(el);
+  });
+
+  // The contact form is honest about being a demo: it confirms, it doesn't post.
+  document.getElementById('contact-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    const name = document.getElementById('c-name').value.trim().split(' ')[0];
+    const status = document.getElementById('c-status');
+
+    status.textContent = `Thanks, ${name}. This is a demo site, so nothing was actually sent — but the form works.`;
+    status.classList.remove('hidden');
+
+    document.getElementById('c-submit').textContent = 'Message sent';
+    document.getElementById('c-submit').disabled = true;
+    document.getElementById('c-submit').classList.add('opacity-60');
+  });
+</script>
 </body>
 </html>

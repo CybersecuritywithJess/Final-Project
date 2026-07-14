@@ -25,19 +25,13 @@ const fmt = {
     });
   },
 
-  time(value) {
-    if (!value) return '—';
-    const d = new Date(String(value).replace(' ', 'T'));
-    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  },
-
   date(value) {
     if (!value) return '—';
     const d = new Date(String(value).replace(' ', 'T'));
     return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   },
 
-  /** "3 minutes ago" — what an analyst actually wants on a live feed. */
+  /** "3m ago" — what an analyst actually wants on a live feed. */
   ago(value) {
     if (!value) return '—';
     const seconds = Math.floor((Date.now() - new Date(String(value).replace(' ', 'T'))) / 1000);
@@ -58,34 +52,43 @@ const fmt = {
 // ------------------------------------------------------------------ badges
 
 const RISK_STYLES = {
-  LOW:      'bg-emerald-500/10 text-emerald-400 ring-emerald-500/30',
-  MEDIUM:   'bg-amber-500/10  text-amber-400   ring-amber-500/30',
-  HIGH:     'bg-orange-500/10 text-orange-400  ring-orange-500/30',
-  CRITICAL: 'bg-rose-500/10   text-rose-400    ring-rose-500/30',
+  LOW:      'bg-forest-50 text-forest-700 ring-forest-200',
+  MEDIUM:   'bg-gold-50   text-gold-600   ring-gold-100',
+  HIGH:     'bg-orange-50 text-orange-700 ring-orange-200',
+  CRITICAL: 'bg-rose-50   text-rose-700   ring-rose-200',
 };
 
 const STATUS_STYLES = {
-  new:                 'bg-sky-500/10     text-sky-400     ring-sky-500/30',
-  under_investigation: 'bg-violet-500/10  text-violet-400  ring-violet-500/30',
-  confirmed_fraud:     'bg-rose-500/10    text-rose-400    ring-rose-500/30',
-  false_positive:      'bg-slate-500/10   text-slate-400   ring-slate-500/30',
-  resolved:            'bg-emerald-500/10 text-emerald-400 ring-emerald-500/30',
-  closed:              'bg-slate-500/10   text-slate-400   ring-slate-500/30',
-  active:              'bg-emerald-500/10 text-emerald-400 ring-emerald-500/30',
-  locked:              'bg-rose-500/10    text-rose-400    ring-rose-500/30',
-  flagged:             'bg-rose-500/10    text-rose-400    ring-rose-500/30',
-  completed:           'bg-emerald-500/10 text-emerald-400 ring-emerald-500/30',
-  failed:              'bg-slate-500/10   text-slate-400   ring-slate-500/30',
+  new:                 'bg-sky-50     text-sky-700     ring-sky-200',
+  under_investigation: 'bg-violet-50  text-violet-700  ring-violet-200',
+  confirmed_fraud:     'bg-rose-50    text-rose-700    ring-rose-200',
+  false_positive:      'bg-stone-100  text-stone-600   ring-stone-200',
+  resolved:            'bg-forest-50  text-forest-700  ring-forest-200',
+  closed:              'bg-stone-100  text-stone-600   ring-stone-200',
+  active:              'bg-forest-50  text-forest-700  ring-forest-200',
+  locked:              'bg-rose-50    text-rose-700    ring-rose-200',
+  flagged:             'bg-rose-50    text-rose-700    ring-rose-200',
+  completed:           'bg-forest-50  text-forest-700  ring-forest-200',
+  failed:              'bg-stone-100  text-stone-600   ring-stone-200',
+  pending:             'bg-gold-50    text-gold-600    ring-gold-100',
 };
 
 function riskBadge(level) {
   const style = RISK_STYLES[level] || RISK_STYLES.LOW;
-  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${style}">${level}</span>`;
+  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wide ring-1 ${style}">${level}</span>`;
 }
 
 function statusBadge(status) {
   const style = STATUS_STYLES[status] || STATUS_STYLES.closed;
-  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${style}">${fmt.label(status)}</span>`;
+  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${style}">${fmt.label(status)}</span>`;
+}
+
+/** The colour a risk score should be shown in. */
+function riskColor(score) {
+  if (score >= 95) return 'rose';
+  if (score >= 70) return 'orange';
+  if (score >= 40) return 'gold';
+  return 'forest';
 }
 
 /** Escape anything that came from a user before it goes near innerHTML. */
@@ -99,19 +102,19 @@ function esc(value) {
 
 const NAV = {
   customer: [
-    { href: '/bank.html', label: 'My Bank', icon: '🏦' },
+    { href: '/bank.html', label: 'My accounts' },
   ],
   auditor: [
-    { href: '/dashboard.html', label: 'Dashboard', icon: '📊' },
-    { href: '/alerts.html', label: 'Fraud Alerts', icon: '🚨' },
-    { href: '/audits.html', label: 'Audit Log', icon: '🔍' },
+    { href: '/dashboard.html', label: 'Dashboard' },
+    { href: '/alerts.html', label: 'Fraud alerts' },
+    { href: '/audits.html', label: 'Audit log' },
   ],
   admin: [
-    { href: '/dashboard.html', label: 'Dashboard', icon: '📊' },
-    { href: '/alerts.html', label: 'Fraud Alerts', icon: '🚨' },
-    { href: '/audits.html', label: 'Audit Log', icon: '🔍' },
-    { href: '/admin.html', label: 'Administration', icon: '⚙️' },
-    { href: '/bank.html', label: 'Demo Bank', icon: '🏦' },
+    { href: '/dashboard.html', label: 'Dashboard' },
+    { href: '/alerts.html', label: 'Fraud alerts' },
+    { href: '/audits.html', label: 'Audit log' },
+    { href: '/admin.html', label: 'Administration' },
+    { href: '/bank.html', label: 'Demo bank' },
   ],
 };
 
@@ -129,7 +132,7 @@ async function mountShell(activePath, allowedRoles = null) {
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // Send people to their own home rather than showing a dead end.
+    // Send people to their own home rather than showing them a dead end.
     window.location.href = user.role === 'customer' ? '/bank.html' : '/dashboard.html';
     return null;
   }
@@ -137,34 +140,43 @@ async function mountShell(activePath, allowedRoles = null) {
   const links = (NAV[user.role] || []).map((item) => {
     const active = item.href === activePath;
     const classes = active
-      ? 'bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/30'
-      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200';
+      ? 'bg-forest-50 text-forest-800 font-semibold'
+      : 'text-stone-600 hover:bg-stone-100 hover:text-ink';
     return `
-      <a href="${item.href}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${classes}">
-        <span class="text-base">${item.icon}</span>${item.label}
+      <a href="${item.href}"
+         class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${classes}">
+        ${active ? '<span class="h-1.5 w-1.5 rounded-full bg-forest-700"></span>' : '<span class="h-1.5 w-1.5"></span>'}
+        ${item.label}
       </a>`;
   }).join('');
 
+  const initials = user.full_name.split(' ').map((w) => w[0]).slice(0, 2).join('');
+
   const shell = document.createElement('div');
   shell.innerHTML = `
-    <aside class="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-slate-800 bg-slate-900">
-      <div class="flex items-center gap-2 border-b border-slate-800 px-5 py-4">
-        <span class="text-xl">🛡️</span>
-        <div>
-          <div class="text-sm font-bold leading-tight text-slate-100">Audit Tracking</div>
-          <div class="text-[11px] leading-tight text-slate-500">Demo Bank</div>
-        </div>
-      </div>
+    <aside class="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-stone-200 bg-white">
+
+      <a href="/" class="flex items-center gap-2.5 border-b border-stone-200 px-5 py-4">
+        <span class="grid h-9 w-9 place-items-center rounded-lg bg-forest-800 text-sm font-bold text-white">S</span>
+        <span class="font-display text-base font-semibold tracking-tight text-ink">
+          Sentinel<span class="text-forest-700">Bank</span>
+        </span>
+      </a>
 
       <nav class="flex-1 space-y-1 p-3">${links}</nav>
 
-      <div class="border-t border-slate-800 p-3">
-        <div class="mb-2 px-2">
-          <div class="truncate text-sm font-medium text-slate-200">${esc(user.full_name)}</div>
-          <div class="text-xs capitalize text-slate-500">${esc(user.role)}</div>
+      <div class="border-t border-stone-200 p-3">
+        <div class="mb-2 flex items-center gap-2.5 px-2 py-1">
+          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-forest-100 text-xs font-bold text-forest-800">
+            ${esc(initials)}
+          </span>
+          <div class="min-w-0">
+            <div class="truncate text-sm font-semibold text-ink">${esc(user.full_name)}</div>
+            <div class="text-xs capitalize text-stone-500">${esc(user.role)}</div>
+          </div>
         </div>
         <button id="logout-btn"
-          class="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-400 transition hover:bg-slate-800 hover:text-rose-400">
+          class="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-stone-500 transition hover:bg-rose-50 hover:text-rose-700">
           Sign out
         </button>
       </div>
@@ -179,18 +191,18 @@ async function mountShell(activePath, allowedRoles = null) {
   return user;
 }
 
-/** A brief message in the corner. Errors stay put a little longer. */
+/** A brief message in the corner. Errors and alerts stay put a little longer. */
 function toast(message, type = 'info') {
   const colors = {
-    info:    'bg-slate-800 text-slate-100 ring-slate-700',
-    success: 'bg-emerald-900/90 text-emerald-100 ring-emerald-700',
-    error:   'bg-rose-900/90 text-rose-100 ring-rose-700',
-    alert:   'bg-orange-900/90 text-orange-100 ring-orange-700',
+    info:    'bg-white text-ink ring-stone-200',
+    success: 'bg-forest-800 text-white ring-forest-900',
+    error:   'bg-rose-600 text-white ring-rose-700',
+    alert:   'bg-orange-600 text-white ring-orange-700',
   };
 
   const el = document.createElement('div');
-  el.className = `pointer-events-none fixed bottom-6 right-6 z-50 max-w-sm rounded-xl px-4 py-3
-                  text-sm font-medium shadow-2xl ring-1 ${colors[type]} animate-[fadein_.15s_ease-out]`;
+  el.className = `fixed bottom-6 right-6 z-50 max-w-sm rounded-xl px-4 py-3 text-sm
+                  font-medium shadow-2xl ring-1 ${colors[type]}`;
   el.innerHTML = message;
   document.body.appendChild(el);
 
@@ -200,8 +212,8 @@ function toast(message, type = 'info') {
 /** The page-level spinner. */
 function loading(container, message = 'Loading…') {
   container.innerHTML = `
-    <div class="flex items-center justify-center gap-3 py-20 text-slate-500">
-      <div class="h-5 w-5 animate-spin rounded-full border-2 border-slate-700 border-t-sky-400"></div>
+    <div class="flex items-center justify-center gap-3 py-20 text-stone-400">
+      <div class="h-5 w-5 animate-spin rounded-full border-2 border-stone-200 border-t-forest-700"></div>
       <span class="text-sm">${message}</span>
     </div>`;
 }

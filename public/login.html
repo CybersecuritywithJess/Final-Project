@@ -1,159 +1,219 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sign in — Financial Audit Tracking System</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <title>Log in — Sentinel Bank</title>
 
-  <main class="flex min-h-screen items-center justify-center p-6">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Fraunces', 'Georgia', 'serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            forest: {
+              50: '#f0f7f4', 100: '#dbeee5', 200: '#b9ddcd',
+              600: '#1f6f5c', 700: '#155445', 800: '#124436', 900: '#0f382d',
+            },
+            gold: { 400: '#d9a441', 600: '#a67018' },
+            ink: '#1a1a18',
+          },
+        },
+      },
+    };
+  </script>
+</head>
+
+<body class="min-h-screen bg-[#fdfcfa] font-sans text-ink antialiased">
+
+<div class="grid min-h-screen lg:grid-cols-2">
+
+  <!-- ── form -->
+  <div class="flex items-center justify-center px-6 py-12">
     <div class="w-full max-w-sm">
 
-      <div class="mb-8 text-center">
-        <div class="mb-3 text-4xl">🛡️</div>
-        <h1 class="text-xl font-bold text-slate-100">Financial Audit Tracking System</h1>
-        <p class="mt-1 text-sm text-slate-500">Demo Bank &middot; every action is audited</p>
-      </div>
+      <a href="/" class="mb-10 inline-flex items-center gap-2.5">
+        <span class="grid h-9 w-9 place-items-center rounded-lg bg-forest-800 text-sm font-bold text-white">S</span>
+        <span class="font-display text-lg font-semibold tracking-tight">Sentinel<span class="text-forest-700">Bank</span></span>
+      </a>
 
-      <form id="login-form"
-            class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+      <h1 class="font-display text-3xl font-semibold leading-tight">Welcome back</h1>
+      <p class="mt-2 text-sm text-stone-500">
+        Every sign-in is recorded — including this one.
+      </p>
 
-        <div id="banner" class="hidden rounded-lg px-3 py-2 text-sm"></div>
+      <form id="login-form" class="mt-8 space-y-5">
+
+        <div id="banner" class="hidden rounded-lg px-3.5 py-2.5 text-sm"></div>
 
         <div>
-          <label for="username" class="mb-1.5 block text-sm font-medium text-slate-300">
+          <label for="username" class="mb-1.5 block text-sm font-semibold text-stone-700">
             Username or email
           </label>
-          <input id="username" name="username" autocomplete="username" required
-                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm
-                        text-slate-100 placeholder-slate-600 outline-none transition
-                        focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-                 placeholder="auditor" />
+          <input id="username" autocomplete="username" required placeholder="auditor"
+                 class="w-full rounded-lg border border-stone-300 bg-white px-3.5 py-2.5 text-sm outline-none
+                        transition placeholder:text-stone-400 focus:border-forest-700 focus:ring-2 focus:ring-forest-700/15" />
         </div>
 
         <div>
-          <label for="password" class="mb-1.5 block text-sm font-medium text-slate-300">
+          <label for="password" class="mb-1.5 block text-sm font-semibold text-stone-700">
             Password
           </label>
-          <input id="password" name="password" type="password" autocomplete="current-password" required
-                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm
-                        text-slate-100 placeholder-slate-600 outline-none transition
-                        focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-                 placeholder="••••••••" />
+          <input id="password" type="password" autocomplete="current-password" required placeholder="••••••••"
+                 class="w-full rounded-lg border border-stone-300 bg-white px-3.5 py-2.5 text-sm outline-none
+                        transition placeholder:text-stone-400 focus:border-forest-700 focus:ring-2 focus:ring-forest-700/15" />
         </div>
 
-        <!-- The bank cannot see where you really are, so for the demo you tell it.
-             This is what makes the "impossible travel" rule observable. -->
-        <details class="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2">
-          <summary class="cursor-pointer select-none text-xs font-medium text-slate-500 hover:text-slate-300">
+        <!-- The server can't tell where you really are, so for the demo you tell it.
+             This is what makes the impossible-travel rule observable. -->
+        <details class="rounded-lg border border-stone-200 bg-white px-3.5 py-2.5">
+          <summary class="cursor-pointer select-none text-xs font-semibold text-stone-500 hover:text-forest-800">
             Simulate location &amp; device
           </summary>
           <div class="mt-3 space-y-2">
-            <p class="text-[11px] leading-relaxed text-slate-500">
+            <p class="text-[11px] leading-relaxed text-stone-500">
               Sign in from another country to trip the impossible-travel rule.
             </p>
             <div class="grid grid-cols-2 gap-2">
               <input id="country" placeholder="Country" value="Kenya"
-                     class="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500" />
+                     class="rounded-md border border-stone-300 px-2.5 py-1.5 text-xs outline-none focus:border-forest-700" />
               <input id="city" placeholder="City" value="Nairobi"
-                     class="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500" />
+                     class="rounded-md border border-stone-300 px-2.5 py-1.5 text-xs outline-none focus:border-forest-700" />
             </div>
             <input id="ip" placeholder="IP address" value="41.90.64.12"
-                   class="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500" />
+                   class="w-full rounded-md border border-stone-300 px-2.5 py-1.5 text-xs outline-none focus:border-forest-700" />
           </div>
         </details>
 
         <button type="submit" id="submit-btn"
-                class="w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white
-                       transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500
-                       focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50">
-          Sign in
+                class="w-full rounded-full bg-forest-800 px-4 py-3 text-sm font-semibold text-white shadow-lg
+                       shadow-forest-800/15 transition hover:bg-forest-900 disabled:opacity-50">
+          Log in
         </button>
 
-        <p class="text-center text-sm text-slate-500">
+        <p class="text-center text-sm text-stone-500">
           No account?
-          <a href="/register.html" class="font-medium text-sky-400 hover:text-sky-300">Open one</a>
+          <a href="/register.html" class="font-semibold text-forest-800 hover:underline">Open one</a>
         </p>
       </form>
 
       <!-- Demo credentials, so a marker never has to hunt for a way in. -->
-      <div class="mt-6 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-        <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Demo accounts &middot; password <span class="text-slate-300">Password123!</span>
+      <div class="mt-10 rounded-xl border border-stone-200 bg-white p-4">
+        <p class="mb-3 text-[11px] font-bold uppercase tracking-wider text-stone-400">
+          Demo accounts · password <span class="text-forest-800">Password123!</span>
         </p>
-        <div class="space-y-1.5 text-xs" id="demo-users"></div>
+        <div class="space-y-0.5" id="demo-users"></div>
       </div>
-
     </div>
-  </main>
+  </div>
 
-  <script src="/assets/js/api.js"></script>
-  <script>
-    const DEMO_USERS = [
-      ['admin',   'Administrator — manage users, tune thresholds'],
-      ['auditor', 'Auditor — dashboard, audit log, investigations'],
-      ['mary_w',  'Customer — 2 critical alerts against her'],
-      ['faith_n', 'Customer — clean history, make transactions'],
-    ];
+  <!-- ── image -->
+  <div class="relative hidden lg:block">
+    <img src="https://images.unsplash.com/photo-1573164713988-8665fc963095?w=1200&q=80"
+         alt="An analyst reviewing security activity" class="absolute inset-0 h-full w-full object-cover" />
+    <div class="absolute inset-0 bg-forest-900/70"></div>
 
-    document.getElementById('demo-users').innerHTML = DEMO_USERS.map(([user, note]) => `
-      <button data-user="${user}"
-              class="demo-user flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition hover:bg-slate-800">
-        <code class="w-16 shrink-0 font-mono font-semibold text-sky-400">${user}</code>
-        <span class="truncate text-slate-500">${note}</span>
-      </button>`).join('');
+    <div class="relative flex h-full flex-col justify-end p-14 text-white">
+      <blockquote class="font-display text-3xl font-semibold leading-snug">
+        "Could someone have done this without us knowing?"
+      </blockquote>
+      <p class="mt-5 max-w-md leading-relaxed text-forest-100/80">
+        The whole system exists so that the answer is no. Every login, every
+        shilling, every admin click — recorded, scored, and put in front of
+        someone who can act on it.
+      </p>
 
-    // One click fills the form — nobody should have to type these.
-    document.querySelectorAll('.demo-user').forEach((button) => {
-      button.addEventListener('click', () => {
-        document.getElementById('username').value = button.dataset.user;
-        document.getElementById('password').value = 'Password123!';
-        document.getElementById('password').focus();
-      });
+      <div class="mt-10 flex gap-10 border-t border-white/15 pt-8">
+        <div>
+          <p class="font-display text-2xl font-semibold">8</p>
+          <p class="text-xs text-forest-100/70">fraud rules live</p>
+        </div>
+        <div>
+          <p class="font-display text-2xl font-semibold">31</p>
+          <p class="text-xs text-forest-100/70">event types tracked</p>
+        </div>
+        <div>
+          <p class="font-display text-2xl font-semibold">0</p>
+          <p class="text-xs text-forest-100/70">actions that escape</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/js/api.js"></script>
+<script>
+  const DEMO_USERS = [
+    ['auditor', 'Auditor — the dashboard and investigations'],
+    ['admin',   'Admin — users and risk thresholds'],
+    ['mary_w',  'Customer — 2 critical alerts against her'],
+    ['faith_n', 'Customer — clean, good for transactions'],
+  ];
+
+  document.getElementById('demo-users').innerHTML = DEMO_USERS.map(([user, note]) => `
+    <button data-user="${user}"
+            class="demo-user flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-xs transition hover:bg-stone-50">
+      <code class="w-14 shrink-0 font-semibold text-forest-800">${user}</code>
+      <span class="truncate text-stone-500">${note}</span>
+    </button>`).join('');
+
+  // One click fills the form — nobody should have to type these.
+  document.querySelectorAll('.demo-user').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.getElementById('username').value = button.dataset.user;
+      document.getElementById('password').value = 'Password123!';
+      document.getElementById('password').focus();
     });
+  });
 
-    const banner = document.getElementById('banner');
-    function showBanner(message, kind = 'error') {
-      const styles = {
-        error: 'bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/30',
-        info:  'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/30',
-      };
-      banner.className = `rounded-lg px-3 py-2 text-sm ${styles[kind]}`;
-      banner.textContent = message;
+  const banner = document.getElementById('banner');
+  function showBanner(message, kind = 'error') {
+    const styles = {
+      error: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200',
+      info:  'bg-amber-50 text-amber-800 ring-1 ring-amber-200',
+    };
+    banner.className = `rounded-lg px-3.5 py-2.5 text-sm ${styles[kind]}`;
+    banner.textContent = message;
+  }
+
+  if (new URLSearchParams(location.search).has('expired')) {
+    showBanner('Your session timed out. Please log in again.', 'info');
+  }
+
+  document.getElementById('login-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const button = document.getElementById('submit-btn');
+    button.disabled = true;
+    button.textContent = 'Signing in…';
+
+    // Stash the simulated location so every later request carries it too.
+    sessionStorage.setItem('demo_context', JSON.stringify({
+      country: document.getElementById('country').value.trim() || 'Kenya',
+      city: document.getElementById('city').value.trim() || 'Nairobi',
+      ip: document.getElementById('ip').value.trim() || '41.90.64.12',
+    }));
+
+    try {
+      const { user } = await API.login(
+        document.getElementById('username').value.trim(),
+        document.getElementById('password').value,
+      );
+      window.location.href = user.role === 'customer' ? '/bank.html' : '/dashboard.html';
+    } catch (error) {
+      showBanner(error.message);
+      button.disabled = false;
+      button.textContent = 'Log in';
     }
-
-    if (new URLSearchParams(location.search).has('expired')) {
-      showBanner('Your session timed out. Please sign in again.', 'info');
-    }
-
-    document.getElementById('login-form').addEventListener('submit', async (event) => {
-      event.preventDefault();
-
-      const button = document.getElementById('submit-btn');
-      button.disabled = true;
-      button.textContent = 'Signing in…';
-
-      // Stash the simulated location so every later request carries it too.
-      sessionStorage.setItem('demo_context', JSON.stringify({
-        country: document.getElementById('country').value.trim() || 'Kenya',
-        city: document.getElementById('city').value.trim() || 'Nairobi',
-        ip: document.getElementById('ip').value.trim() || '41.90.64.12',
-      }));
-
-      try {
-        const { user } = await API.login(
-          document.getElementById('username').value.trim(),
-          document.getElementById('password').value,
-        );
-        window.location.href = user.role === 'customer' ? '/bank.html' : '/dashboard.html';
-      } catch (error) {
-        showBanner(error.message);
-        button.disabled = false;
-        button.textContent = 'Sign in';
-      }
-    });
-  </script>
+  });
+</script>
 </body>
 </html>

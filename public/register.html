@@ -1,112 +1,186 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Open an account — Demo Bank</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <title>Open an account — Sentinel Bank</title>
 
-  <main class="flex min-h-screen items-center justify-center p-6">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Fraunces', 'Georgia', 'serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            forest: {
+              50: '#f0f7f4', 100: '#dbeee5', 200: '#b9ddcd',
+              600: '#1f6f5c', 700: '#155445', 800: '#124436', 900: '#0f382d',
+            },
+            gold: { 400: '#d9a441', 600: '#a67018' },
+            ink: '#1a1a18',
+          },
+        },
+      },
+    };
+  </script>
+</head>
+
+<body class="min-h-screen bg-[#fdfcfa] font-sans text-ink antialiased">
+
+<div class="grid min-h-screen lg:grid-cols-2">
+
+  <!-- ── image -->
+  <div class="relative hidden lg:block">
+    <img src="https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1200&q=80"
+         alt="Two colleagues shaking hands" class="absolute inset-0 h-full w-full object-cover" />
+    <div class="absolute inset-0 bg-forest-900/70"></div>
+
+    <div class="relative flex h-full flex-col justify-end p-14 text-white">
+      <blockquote class="font-display text-3xl font-semibold leading-snug">
+        Your account comes with a witness.
+      </blockquote>
+      <p class="mt-5 max-w-md leading-relaxed text-forest-100/80">
+        Open a checking and a savings account in one step. From the moment you do,
+        every action on them is recorded — which is exactly what you want when
+        something goes wrong.
+      </p>
+
+      <ul class="mt-10 space-y-3 border-t border-white/15 pt-8 text-sm text-forest-100/90">
+        <li class="flex gap-3">
+          <span class="text-gold-400">✓</span> Two accounts, opened instantly
+        </li>
+        <li class="flex gap-3">
+          <span class="text-gold-400">✓</span> Password stored as a bcrypt hash, never in plain text
+        </li>
+        <li class="flex gap-3">
+          <span class="text-gold-400">✓</span> Suspicious activity flagged without you asking
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ── form -->
+  <div class="flex items-center justify-center px-6 py-12">
     <div class="w-full max-w-sm">
 
-      <div class="mb-8 text-center">
-        <div class="mb-3 text-4xl">🏦</div>
-        <h1 class="text-xl font-bold">Open an account</h1>
-        <p class="mt-1 text-sm text-slate-500">
-          You get a checking and a savings account
-        </p>
-      </div>
+      <a href="/" class="mb-10 inline-flex items-center gap-2.5">
+        <span class="grid h-9 w-9 place-items-center rounded-lg bg-forest-800 text-sm font-bold text-white">S</span>
+        <span class="font-display text-lg font-semibold tracking-tight">Sentinel<span class="text-forest-700">Bank</span></span>
+      </a>
 
-      <form id="register-form"
-            class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+      <h1 class="font-display text-3xl font-semibold leading-tight">Open an account</h1>
+      <p class="mt-2 text-sm text-stone-500">
+        You'll get a checking and a savings account.
+      </p>
 
-        <div id="banner" class="hidden rounded-lg px-3 py-2 text-sm"></div>
+      <form id="register-form" class="mt-8 space-y-4">
+
+        <div id="banner" class="hidden rounded-lg px-3.5 py-2.5 text-sm"></div>
 
         <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-300">Full name</label>
-          <input id="full_name" required placeholder="Jane Mwangi"
-                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+          <label class="mb-1.5 block text-sm font-semibold text-stone-700">Full name</label>
+          <input id="full_name" required placeholder="Jane Mwangi" class="input" />
         </div>
 
         <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-300">Username</label>
-          <input id="username" required placeholder="jane_m"
-                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+          <label class="mb-1.5 block text-sm font-semibold text-stone-700">Username</label>
+          <input id="username" required placeholder="jane_m" class="input" />
         </div>
 
         <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-300">Email</label>
-          <input id="email" type="email" required placeholder="jane@example.com"
-                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+          <label class="mb-1.5 block text-sm font-semibold text-stone-700">Email</label>
+          <input id="email" type="email" required placeholder="jane@example.com" class="input" />
         </div>
 
         <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-300">Phone</label>
-          <input id="phone" placeholder="+254712345678"
-                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+          <label class="mb-1.5 block text-sm font-semibold text-stone-700">
+            Phone <span class="font-normal text-stone-400">(optional)</span>
+          </label>
+          <input id="phone" placeholder="+254712345678" class="input" />
         </div>
 
         <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-300">Password</label>
-          <input id="password" type="password" required placeholder="At least 8 characters"
-                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
-          <p class="mt-1.5 text-xs text-slate-600">
-            Stored as a bcrypt hash — never in plain text.
+          <label class="mb-1.5 block text-sm font-semibold text-stone-700">Password</label>
+          <input id="password" type="password" required placeholder="At least 8 characters" class="input" />
+          <p class="mt-1.5 text-xs text-stone-400">
+            Hashed with bcrypt before it touches the database.
           </p>
         </div>
 
         <button type="submit" id="submit-btn"
-                class="w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50">
-          Create account
+                class="w-full rounded-full bg-forest-800 px-4 py-3 text-sm font-semibold text-white shadow-lg
+                       shadow-forest-800/15 transition hover:bg-forest-900 disabled:opacity-50">
+          Create my account
         </button>
 
-        <p class="text-center text-sm text-slate-500">
+        <p class="text-center text-sm text-stone-500">
           Already have one?
-          <a href="/login.html" class="font-medium text-sky-400 hover:text-sky-300">Sign in</a>
+          <a href="/login.html" class="font-semibold text-forest-800 hover:underline">Log in</a>
         </p>
       </form>
     </div>
-  </main>
+  </div>
+</div>
 
-  <script src="/assets/js/api.js"></script>
-  <script>
-    const banner = document.getElementById('banner');
+<style>
+  .input {
+    width: 100%;
+    border-radius: .5rem;
+    border: 1px solid #d6d3d1;
+    background: #fff;
+    padding: .625rem .875rem;
+    font-size: .875rem;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .input::placeholder { color: #a8a29e; }
+  .input:focus { border-color: #155445; box-shadow: 0 0 0 2px rgb(21 84 69 / .15); }
+</style>
 
-    function showBanner(message, kind = 'error') {
-      const styles = {
-        error:   'bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/30',
-        success: 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30',
-      };
-      banner.className = `rounded-lg px-3 py-2 text-sm ${styles[kind]}`;
-      banner.textContent = message;
+<script src="/assets/js/api.js"></script>
+<script>
+  const banner = document.getElementById('banner');
+
+  function showBanner(message, kind = 'error') {
+    const styles = {
+      error:   'bg-rose-50 text-rose-700 ring-1 ring-rose-200',
+      success: 'bg-forest-50 text-forest-800 ring-1 ring-forest-200',
+    };
+    banner.className = `rounded-lg px-3.5 py-2.5 text-sm ${styles[kind]}`;
+    banner.textContent = message;
+  }
+
+  document.getElementById('register-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const button = document.getElementById('submit-btn');
+    button.disabled = true;
+    button.textContent = 'Creating…';
+
+    try {
+      await API.register({
+        full_name: document.getElementById('full_name').value.trim(),
+        username: document.getElementById('username').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        password: document.getElementById('password').value,
+      });
+
+      showBanner('Account created. Taking you to the log-in page…', 'success');
+      setTimeout(() => (window.location.href = '/login.html'), 1200);
+    } catch (error) {
+      showBanner(error.message);
+      button.disabled = false;
+      button.textContent = 'Create my account';
     }
-
-    document.getElementById('register-form').addEventListener('submit', async (event) => {
-      event.preventDefault();
-
-      const button = document.getElementById('submit-btn');
-      button.disabled = true;
-      button.textContent = 'Creating…';
-
-      try {
-        await API.register({
-          full_name: document.getElementById('full_name').value.trim(),
-          username: document.getElementById('username').value.trim(),
-          email: document.getElementById('email').value.trim(),
-          phone: document.getElementById('phone').value.trim(),
-          password: document.getElementById('password').value,
-        });
-
-        showBanner('Account created. Redirecting you to sign in…', 'success');
-        setTimeout(() => (window.location.href = '/login.html'), 1200);
-      } catch (error) {
-        showBanner(error.message);
-        button.disabled = false;
-        button.textContent = 'Create account';
-      }
-    });
-  </script>
+  });
+</script>
 </body>
 </html>
