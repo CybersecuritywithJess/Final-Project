@@ -37,4 +37,22 @@ return [
     'google' => [
         'client_id' => getenv('GOOGLE_CLIENT_ID') ?: '',
     ],
+
+    /**
+     * AI Audit Assistant.
+     *
+     * The assistant always works: with no key it answers from a built-in rule
+     * engine that maps plain-English questions to safe, pre-built SQL. Add an
+     * Anthropic API key and it upgrades to Claude, which understands free-form
+     * phrasing and writes its own read-only queries (every one is sandboxed and
+     * validated before it runs).
+     *
+     * Get a key at https://console.anthropic.com/ and paste it below, or set
+     * ANTHROPIC_API_KEY in the environment. Unlike the Google client id this is
+     * a SECRET — it never reaches the browser and must not be committed.
+     */
+    'ai' => [
+        'api_key' => getenv('ANTHROPIC_API_KEY') ?: '',
+        'model'   => getenv('ANTHROPIC_MODEL') ?: 'claude-opus-4-8',
+    ],
 ];

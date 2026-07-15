@@ -72,6 +72,32 @@ Then open **<http://localhost:8000>**.
 > Prefer Apache? Copy the project into `C:\xampp\htdocs\`, point Apache's
 > document root at the `public/` folder, and start Apache instead of step 4.
 
+### Turn on the AI Audit Assistant's Claude mode (optional)
+
+Auditors and admins get an **AI assistant** page where they ask questions in
+plain English — "show all high-risk withdrawals this week", "why was John
+flagged", "which customer has the highest risk score". It works out of the box
+with a **built-in rule engine** (no key, offline, free) that maps questions to
+safe, pre-built queries.
+
+Add an Anthropic API key and it upgrades to **Claude**, which understands any
+phrasing and writes its own read-only SQL — every query is sandboxed through
+`SqlGuard` (SELECT-only, allow-listed tables, run-and-rollback) before it runs,
+so the model can never change a record.
+
+1. Get a key at <https://console.anthropic.com/>.
+2. Start the app with it set:
+
+   ```bash
+   ANTHROPIC_API_KEY="sk-ant-..." C:\xampp\php\php.exe -S localhost:8000 -t public
+   ```
+
+   (Or paste it into `config/config.php` under `ai` → `api_key`.)
+
+The assistant is **read-only** and **auditor/admin only**, and every question is
+itself written to the audit log. Unlike the Google client id, this key is a
+**secret** — keep it out of the repo.
+
 ### Turn on "Continue with Google" (optional)
 
 The Google button is built in but stays hidden until you give it a Client ID —

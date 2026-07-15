@@ -72,6 +72,7 @@ class RiskEngine
         'role_changed'          => ['Access Control',       'CRITICAL', 'User role changed'],
         'unauthorized_access'   => ['Access Control',       'CRITICAL', 'Unauthorized access attempt'],
         'audit_viewed'          => ['Access Control',       'LOW',      'Audit log viewed'],
+        'assistant_query'       => ['Access Control',       'LOW',      'AI assistant query'],
         'report_exported'       => ['Data Integrity',       'MEDIUM',   'Report exported'],
         'alert_status_changed'  => ['Data Integrity',       'MEDIUM',   'Alert status changed'],
         'alert_note_added'      => ['Data Integrity',       'LOW',      'Investigation note added'],
