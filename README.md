@@ -51,11 +51,15 @@ no cloud services.
 C:\xampp\mysql\bin\mysql.exe -u root < database/schema.sql
 ```
 
-**3. Fill it with demo data:**
+**3. Create the two staff sign-in accounts:**
 
 ```bash
 C:\xampp\php\php.exe database/seed.php
 ```
+
+This adds only an `admin` and an `auditor` account so you can get in. It plants
+**no** demo customers, transactions or alerts — the audit log and alert queue
+start empty and fill only with real activity once people use the app.
 
 **4. Start the app:**
 
@@ -95,16 +99,18 @@ once: `mysql -u root audit_tracking < database/migrations/001_google_auth.sql`.
 
 ### Sign in
 
-Every password demo account uses the password **`Password123!`**
+The two staff accounts both use the password **`Password123!`**
 
-| Username  | Role     | What's interesting about them                                           |
-|-----------|----------|-------------------------------------------------------------------------|
-| `admin`   | Admin    | Manage users, retune the fraud thresholds, see system health             |
-| `auditor` | Auditor  | The dashboard, the alert queue, the audit log, investigations            |
-| `mary_w`  | Customer | **2 CRITICAL alerts** — logged in from Nigeria, then drained her account |
-| `peter_o` | Customer | Flagged for **rapid successive transfers** (structuring)                 |
-| `john123` | Customer | **LOCKED** — brute-forced from a Moscow IP. Unlock him as `admin`        |
-| `faith_n` | Customer | Clean history. Good account to make fresh transactions from              |
+| Username  | Role     | What they can do                                              |
+|-----------|----------|--------------------------------------------------------------|
+| `admin`   | Admin    | Manage users, retune the fraud thresholds, see system health |
+| `auditor` | Auditor  | The dashboard, the alert queue, the audit log, investigations |
+
+There are no pre-made customers. To generate real activity, open the sign-up
+page, create a **Demo Bank user**, and start banking — every login, deposit,
+withdrawal and transfer is recorded, and the fraud rules raise alerts on their
+own when a real pattern trips them (e.g. withdraw more than KES 500,000, or log
+in from a different country using the "Simulate location" panel).
 
 ---
 
@@ -222,7 +228,7 @@ config/
 
 database/
   schema.sql            8 tables, foreign keys, indexes
-  seed.php              6 customers, 14 days of history, 5 planted incidents
+  seed.php              Bootstrap: the admin + auditor accounts only, no demo data
 
 src/
   Database.php          PDO wrapper — every query is prepared
