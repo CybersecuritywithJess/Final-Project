@@ -5,6 +5,30 @@
  * anywhere means the session lapsed — we bounce to the login page rather than
  * letting the UI render half-empty.
  */
+/**
+ * Where each role belongs after signing in. One definition, used by every
+ * entry point (login, sign-up, Google, the landing page, and the guard in
+ * ui.js) so they can never disagree about a role's home.
+ *
+ *   customer (Demo Bank user) -> the bank
+ *   auditor                   -> the audit log
+ *   admin                     -> administration
+ */
+function roleHome(role) {
+  if (role === 'admin') return '/admin.html';
+  if (role === 'auditor') return '/audits.html';
+  return '/bank.html';
+}
+
+/** Human label for a role, for messages and menus. */
+function roleLabel(role) {
+  return {
+    customer: 'Demo Bank user',
+    auditor: 'Auditor',
+    admin: 'Administrator',
+  }[role] || role;
+}
+
 const API = {
   async request(endpoint, { method = 'GET', body = null, params = {} } = {}) {
     const url = new URL(`/api/${endpoint}`, window.location.origin);
@@ -39,7 +63,11 @@ const API = {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.error || `Request failed (${response.status})`);
+      // Carry any structured fields (e.g. code, actual_role) on the error so
+      // callers can react, not just display the message.
+      const error = new Error(data.error || `Request failed (${response.status})`);
+      Object.assign(error, data);
+      throw error;
     }
 
     return data;
@@ -51,8 +79,8 @@ const API = {
   del: (endpoint, params) => API.request(endpoint, { method: 'DELETE', params }),
 
   // -- auth ----------------------------------------------------------------
-  login: (username, password) =>
-    API.post('auth.php?action=login', { username, password }),
+  login: (username, password, role = '') =>
+    API.post('auth.php?action=login', { username, password, role }),
   register: (data) => API.post('auth.php?action=register', data),
   logout: () => API.post('auth.php?action=logout'),
   me: () => API.get('auth.php?action=me'),

@@ -44,7 +44,7 @@ async function handleCredential(response) {
     const { user } = await API.post('auth.php?action=google', {
       credential: response.credential,
     });
-    window.location.href = user.role === 'customer' ? '/bank.html' : '/dashboard.html';
+    window.location.href = roleHome(user.role);
   } catch (error) {
     if (typeof showBanner === 'function') {
       showBanner(error.message);

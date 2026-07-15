@@ -70,9 +70,13 @@ function register(Context $ctx): never
     $email    = trim($body['email'] ?? '');
     $phone    = trim($body['phone'] ?? '');
     $password = $body['password'] ?? '';
+    $role     = $body['role'] ?? 'customer';
 
     if ($username === '' || $fullName === '' || $email === '' || $password === '') {
         Response::error('Username, full name, email and password are all required');
+    }
+    if (!in_array($role, ['customer', 'auditor', 'admin'], true)) {
+        Response::error('Please choose a valid role');
     }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         Response::error('That email address is not valid');
@@ -90,30 +94,47 @@ function register(Context $ctx): never
     }
 
     $userId = Database::insert(
-        "INSERT INTO users (username, full_name, email, phone, password_hash, role)
-         VALUES (?, ?, ?, ?, ?, 'customer')",
-        [$username, $fullName, $email, $phone ?: null, Auth::hash($password)]
+        'INSERT INTO users (username, full_name, email, phone, password_hash, role)
+         VALUES (?, ?, ?, ?, ?, ?)',
+        [$username, $fullName, $email, $phone ?: null, Auth::hash($password), $role]
     );
 
-    $accounts = Bank::openAccounts($userId);
+    // Only Demo Bank users get accounts; auditors and admins never bank here.
+    $accounts = $role === 'customer' ? Bank::openAccounts($userId) : null;
+
+    $descr = $role === 'customer'
+        ? "New customer \"$username\" registered and was issued account " . $accounts['checking']['account_number']
+        : "New $role \"$username\" registered";
 
     AuditEngine::record([
         'type'            => 'user_registered',
         'ctx'             => $ctx,
         'subject_user_id' => $userId,
-        'actor'           => ['id' => $userId, 'role' => 'customer'],
-        'description'     => "New customer \"$username\" registered and was issued account " .
-                             $accounts['checking']['account_number'],
-        'metadata'        => [
+        'actor'           => ['id' => $userId, 'role' => $role],
+        'description'     => $descr,
+        'metadata'        => array_filter([
+            'role'     => $role,
             'email'    => $email,
-            'accounts' => [
+            'accounts' => $accounts ? [
                 $accounts['checking']['account_number'],
                 $accounts['savings']['account_number'],
-            ],
-        ],
+            ] : null,
+        ]),
     ]);
 
-    Response::json(['message' => 'Account created. You can sign in now.'], 201);
+    // Sign them straight in so they land on their role's home page.
+    $user = Database::one('SELECT * FROM users WHERE id = ?', [$userId]);
+    Auth::login($user);
+
+    Response::json([
+        'user' => [
+            'id'        => $userId,
+            'username'  => $username,
+            'full_name' => $fullName,
+            'email'     => $email,
+            'role'      => $role,
+        ],
+    ], 201);
 }
 
 // ------------------------------------------------------------------- LOGIN
@@ -198,6 +219,26 @@ function login(Context $ctx): never
         }
 
         Response::error('Invalid username or password', 401);
+    }
+
+    // The password is correct. If they declared a role, it must be the account's
+    // real role — checked only after authentication, so it never leaks a role to
+    // someone who doesn't already hold the password. No session is created on a
+    // mismatch, and it is not treated as a failed password (no lockout).
+    $declaredRole = $body['role'] ?? '';
+    if ($declaredRole !== '' && $declaredRole !== $user['role']) {
+        AuditEngine::record([
+            'type'            => 'login_failed',
+            'ctx'             => $ctx,
+            'subject_user_id' => (int) $user['id'],
+            'description'     => "\"{$user['username']}\" signed in as \"$declaredRole\" but the account is \"{$user['role']}\"",
+            'metadata'        => ['reason' => 'role_mismatch', 'declared' => $declaredRole, 'actual' => $user['role']],
+        ]);
+        Response::error(
+            "That account's role is \"{$user['role']}\". Please select \"{$user['role']}\" and try again.",
+            403,
+            ['code' => 'ROLE_MISMATCH', 'actual_role' => $user['role']]
+        );
     }
 
     // --- success

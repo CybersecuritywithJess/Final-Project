@@ -685,12 +685,12 @@
   API.whoami().then((user) => {
     if (!user) return;   // the default Log in / Open an account buttons are right
 
-    const home = user.role === 'customer' ? '/bank.html' : '/dashboard.html';
+    const dest = { customer: 'Demo Bank', auditor: 'audit log', admin: 'admin panel' }[user.role];
     document.getElementById('nav-actions').innerHTML = `
       <span class="hidden text-sm text-stone-500 sm:inline">Hi, ${user.full_name.split(' ')[0]}</span>
-      <a href="${home}"
+      <a href="${roleHome(user.role)}"
          class="rounded-full bg-forest-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-forest-900">
-        Go to my ${user.role === 'customer' ? 'bank' : 'dashboard'}
+        Go to my ${dest}
       </a>`;
   });
 

@@ -75,9 +75,9 @@
         <span class="font-display text-lg font-semibold tracking-tight">Sentinel<span class="text-forest-700">Bank</span></span>
       </a>
 
-      <h1 class="font-display text-3xl font-semibold leading-tight">Open an account</h1>
+      <h1 class="font-display text-3xl font-semibold leading-tight">Create an account</h1>
       <p class="mt-2 text-sm text-stone-500">
-        You'll get a checking and a savings account.
+        Choose the role you're signing up as.
       </p>
 
       <!-- Sign up straight from a Google account. Hidden unless configured. -->
@@ -93,6 +93,26 @@
       <form id="register-form" class="mt-8 space-y-4">
 
         <div id="banner" class="hidden rounded-lg px-3.5 py-2.5 text-sm"></div>
+
+        <!-- Role picker. The value is the DB role; the label is what a person reads. -->
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-stone-700">I am signing up as</label>
+          <div class="grid grid-cols-3 gap-2" id="role-picker">
+            <button type="button" data-role="customer"
+                    class="role-opt rounded-lg border px-2 py-2.5 text-center text-xs font-semibold transition">
+              Demo Bank<br />user
+            </button>
+            <button type="button" data-role="auditor"
+                    class="role-opt rounded-lg border px-2 py-2.5 text-center text-xs font-semibold transition">
+              Auditor
+            </button>
+            <button type="button" data-role="admin"
+                    class="role-opt rounded-lg border px-2 py-2.5 text-center text-xs font-semibold transition">
+              Administrator
+            </button>
+          </div>
+          <p class="mt-1.5 text-xs text-stone-400" id="role-hint"></p>
+        </div>
 
         <div>
           <label class="mb-1.5 block text-sm font-semibold text-stone-700">Full name</label>
@@ -171,6 +191,30 @@
   // Offer Google sign-up if the server has it configured.
   initGoogleSignIn('google-btn');
 
+  // --- role picker
+  let role = 'customer';
+  const HINTS = {
+    customer: 'You get a checking and a savings account, and land on the Demo Bank.',
+    auditor:  'You investigate activity from the Demo Bank, and land on the Audit Log.',
+    admin:    'You manage users and risk thresholds, and land on Administration.',
+  };
+
+  const ON  = 'border-forest-700 bg-forest-50 text-forest-800';
+  const OFF = 'border-stone-300 bg-white text-stone-600 hover:border-forest-300';
+
+  function selectRole(next) {
+    role = next;
+    document.querySelectorAll('.role-opt').forEach((b) => {
+      b.className = 'role-opt rounded-lg border px-2 py-2.5 text-center text-xs font-semibold transition '
+                    + (b.dataset.role === role ? ON : OFF);
+    });
+    document.getElementById('role-hint').textContent = HINTS[role];
+  }
+
+  document.querySelectorAll('.role-opt').forEach((b) =>
+    b.addEventListener('click', () => selectRole(b.dataset.role)));
+  selectRole('customer');
+
   document.getElementById('register-form').addEventListener('submit', async (event) => {
     event.preventDefault();
 
@@ -179,7 +223,8 @@
     button.textContent = 'Creating…';
 
     try {
-      await API.register({
+      const { user } = await API.register({
+        role,
         full_name: document.getElementById('full_name').value.trim(),
         username: document.getElementById('username').value.trim(),
         email: document.getElementById('email').value.trim(),
@@ -187,8 +232,8 @@
         password: document.getElementById('password').value,
       });
 
-      showBanner('Account created. Taking you to the log-in page…', 'success');
-      setTimeout(() => (window.location.href = '/login.html'), 1200);
+      showBanner(`Welcome, ${user.full_name.split(' ')[0]}. Taking you to your ${roleLabel(user.role)} area…`, 'success');
+      setTimeout(() => (window.location.href = roleHome(user.role)), 900);
     } catch (error) {
       showBanner(error.message);
       button.disabled = false;

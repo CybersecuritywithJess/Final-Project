@@ -133,7 +133,7 @@ async function mountShell(activePath, allowedRoles = null) {
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     // Send people to their own home rather than showing them a dead end.
-    window.location.href = user.role === 'customer' ? '/bank.html' : '/dashboard.html';
+    window.location.href = roleHome(user.role);
     return null;
   }
 

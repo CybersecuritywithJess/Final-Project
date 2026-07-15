@@ -65,6 +65,25 @@
 
         <div id="banner" class="hidden rounded-lg px-3.5 py-2.5 text-sm"></div>
 
+        <!-- State your role. The server checks it against the account. -->
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-stone-700">I am a</label>
+          <div class="grid grid-cols-3 gap-2" id="role-picker">
+            <button type="button" data-role="customer"
+                    class="role-opt rounded-lg border px-2 py-2 text-center text-xs font-semibold transition">
+              Demo Bank<br />user
+            </button>
+            <button type="button" data-role="auditor"
+                    class="role-opt rounded-lg border px-2 py-2 text-center text-xs font-semibold transition">
+              Auditor
+            </button>
+            <button type="button" data-role="admin"
+                    class="role-opt rounded-lg border px-2 py-2 text-center text-xs font-semibold transition">
+              Administrator
+            </button>
+          </div>
+        </div>
+
         <div>
           <label for="username" class="mb-1.5 block text-sm font-semibold text-stone-700">
             Username or email
@@ -163,25 +182,43 @@
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/google.js"></script>
 <script>
+  // --- role picker
+  let role = 'customer';
+  const ON  = 'border-forest-700 bg-forest-50 text-forest-800';
+  const OFF = 'border-stone-300 bg-white text-stone-600 hover:border-forest-300';
+
+  function selectRole(next) {
+    role = next;
+    document.querySelectorAll('.role-opt').forEach((b) => {
+      b.className = 'role-opt rounded-lg border px-2 py-2 text-center text-xs font-semibold transition '
+                    + (b.dataset.role === role ? ON : OFF);
+    });
+  }
+  document.querySelectorAll('.role-opt').forEach((b) =>
+    b.addEventListener('click', () => selectRole(b.dataset.role)));
+  selectRole('customer');
+
+  // Demo accounts. Each carries its role so one click fills the form correctly.
   const DEMO_USERS = [
-    ['auditor', 'Auditor — the dashboard and investigations'],
-    ['admin',   'Admin — users and risk thresholds'],
-    ['mary_w',  'Customer — 2 critical alerts against her'],
-    ['faith_n', 'Customer — clean, good for transactions'],
+    ['auditor', 'auditor',  'Auditor — audit log and investigations'],
+    ['admin',   'admin',    'Admin — users and risk thresholds'],
+    ['mary_w',  'customer', 'Demo Bank user — 2 critical alerts'],
+    ['faith_n', 'customer', 'Demo Bank user — clean history'],
   ];
 
-  document.getElementById('demo-users').innerHTML = DEMO_USERS.map(([user, note]) => `
-    <button data-user="${user}"
+  document.getElementById('demo-users').innerHTML = DEMO_USERS.map(([user, r, note]) => `
+    <button data-user="${user}" data-role="${r}"
             class="demo-user flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-xs transition hover:bg-stone-50">
       <code class="w-14 shrink-0 font-semibold text-forest-800">${user}</code>
       <span class="truncate text-stone-500">${note}</span>
     </button>`).join('');
 
-  // One click fills the form — nobody should have to type these.
+  // One click fills username, password AND the role, so a demo never mismatches.
   document.querySelectorAll('.demo-user').forEach((button) => {
     button.addEventListener('click', () => {
       document.getElementById('username').value = button.dataset.user;
       document.getElementById('password').value = 'Password123!';
+      selectRole(button.dataset.role);
       document.getElementById('password').focus();
     });
   });
@@ -221,9 +258,12 @@
       const { user } = await API.login(
         document.getElementById('username').value.trim(),
         document.getElementById('password').value,
+        role,
       );
-      window.location.href = user.role === 'customer' ? '/bank.html' : '/dashboard.html';
+      window.location.href = roleHome(user.role);
     } catch (error) {
+      // On a role mismatch, flip the picker to the right role to help them retry.
+      if (error.actual_role) selectRole(error.actual_role);
       showBanner(error.message);
       button.disabled = false;
       button.textContent = 'Log in';
