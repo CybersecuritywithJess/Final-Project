@@ -36,7 +36,7 @@ class AuditAssistant
             'lockedAccounts', 'rapidTransfers', 'largestTransactions',
             'suspiciousSummary', 'financialActivity', 'userActivity',
             'openAlerts', 'usersByRole', 'adminActions', 'totals',
-            'failedLoginCount', 'recentActivity',
+            'failedLoginCount', 'recentActivity', 'keywordSearch',
         ];
 
         foreach ($matchers as $matcher) {
@@ -78,7 +78,40 @@ class AuditAssistant
             'user'     => self::findUser($q),
             'ip'       => self::findIp($q),
             'country'  => self::findCountry($q),
+            'amount'   => self::amounts($q),
         ];
+    }
+
+    /**
+     * A ['min'=>, 'max'=>] amount filter if the question compares against a
+     * money value ("over 500,000", "under 50k", "between 1m and 2m").
+     */
+    private static function amounts(string $q): array
+    {
+        $none = ['min' => null, 'max' => null];
+        $hasCue = preg_match('/\b(over|above|more than|greater than|at least|exceed(?:ing|s)?|under|below|less than|at most|between)\b|\bkes\b|\bksh\b|\bamount\b|>|</', $q);
+        if (!$hasCue) return $none;
+
+        // Numbers, optionally with a k / m / million suffix.
+        preg_match_all('/(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|m|million)?/i', $q, $all, PREG_SET_ORDER);
+        $nums = [];
+        foreach ($all as $m) {
+            $n = (float) str_replace(',', '', $m[1]);
+            $suf = strtolower($m[2] ?? '');
+            if ($suf === 'k' || $suf === 'thousand') $n *= 1000;
+            elseif ($suf === 'm' || $suf === 'million') $n *= 1_000_000;
+            // Ignore small bare numbers so "last 7 days" isn't read as money.
+            if ($n >= 1000 || $suf !== '') $nums[] = $n;
+        }
+        if (!$nums) return $none;
+
+        if (preg_match('/\bbetween\b/', $q) && count($nums) >= 2) {
+            return ['min' => min($nums[0], $nums[1]), 'max' => max($nums[0], $nums[1])];
+        }
+        if (preg_match('/\b(under|below|less than|at most)\b|</', $q)) {
+            return ['min' => null, 'max' => $nums[0]];
+        }
+        return ['min' => $nums[0], 'max' => null];
     }
 
     /** A [sql, label] pair for the time window named in the question, or null. */
@@ -403,9 +436,11 @@ class AuditAssistant
     private static function financialActivity(string $q, array $s): ?array
     {
         $type = self::eventType($q);
-        if (!$type && !$s['risk']) return null;
-        // Only treat as financial when a financial type or a risk+activity is named.
-        if (!$type && !preg_match('/\btransaction|\bactivity\b|\bevents?\b/', $q)) return null;
+        $hasAmount = $s['amount']['min'] !== null || $s['amount']['max'] !== null;
+        if (!$type && !$s['risk'] && !$hasAmount) return null;
+        // Only treat as financial when a financial type, an amount, or a
+        // risk+activity is named.
+        if (!$type && !$hasAmount && !preg_match('/\btransaction|\bactivity\b|\bevents?\b/', $q)) return null;
 
         [$win, $winLabel] = $s['window'] ?? ["1=1", 'all time'];
         $where = [$win];
@@ -419,6 +454,14 @@ class AuditAssistant
             $in = implode(',', array_fill(0, count($s['risk']), '?'));
             $where[] = "e.risk_level IN ($in)";
             array_push($params, ...$s['risk']);
+        }
+        if ($s['amount']['min'] !== null) {
+            $where[] = 'e.amount >= ?';
+            $params[] = $s['amount']['min'];
+        }
+        if ($s['amount']['max'] !== null) {
+            $where[] = 'e.amount <= ?';
+            $params[] = $s['amount']['max'];
         }
         if ($s['user']) {
             $where[] = 'e.subject_user_id = ?';
@@ -605,6 +648,91 @@ class AuditAssistant
         return self::result('The most recent activity across the whole system.', 'Recent activity', $rows);
     }
 
+    /**
+     * The catch-all. When no specific report fits, search the whole audit log
+     * for the meaningful words in the question — across the description, event
+     * type, category, the customer, and the device/location columns — while
+     * still honouring any window, risk, amount, user, IP or country filter that
+     * was detected. This is what lets the assistant answer a question it was
+     * never explicitly taught, as long as it's about the audit data.
+     */
+    private static function keywordSearch(string $q, array $s): ?array
+    {
+        $stop = [
+            'show','list','give','tell','find','get','display','fetch','pull',
+            'me','all','the','from','with','for','and','that','this','these','those',
+            'which','what','who','whom','whose','when','where','how','many','much',
+            'are','was','were','been','being','give','have','has','had','any','some',
+            'about','into','over','under','above','below','than','more','most','least',
+            'recent','latest','last','week','month','today','yesterday','day','days',
+            'event','events','activity','activities','record','records','log','logs',
+            'please','can','could','would','should','did','does','do','is','of','in',
+            'on','by','to','as','at','a','an','it','be','or','so','high','low','medium',
+            'critical','risk','risky','suspicious','system','audit','auditor','report',
+        ];
+
+        preg_match_all('/[a-z0-9_@.]+/', $q, $tok);
+        $terms = [];
+        foreach (array_unique($tok[0]) as $t) {
+            if (strlen($t) >= 4 && !in_array($t, $stop, true) && !ctype_digit($t)) {
+                $terms[] = $t;
+            }
+        }
+        // Nothing searchable and no structured filter either — hand to help().
+        $hasFilter = $s['risk'] || $s['user'] || $s['ip'] || $s['country']
+            || $s['window'] || $s['amount']['min'] !== null || $s['amount']['max'] !== null;
+        if (!$terms && !$hasFilter) return null;
+
+        $cols = ['e.description', 'e.event_type', 'e.category', 'u.username',
+                 'u.full_name', 'e.ip_address', 'e.country', 'e.city',
+                 'e.browser', 'e.os', 'e.device_type'];
+
+        [$win, $winLabel] = $s['window'] ?? ["1=1", 'all time'];
+        $where = [$win];
+        $params = [];
+
+        if ($terms) {
+            $ors = [];
+            foreach ($terms as $t) {
+                foreach ($cols as $c) {
+                    $ors[] = "$c LIKE ?";
+                    $params[] = '%' . $t . '%';
+                }
+            }
+            $where[] = '(' . implode(' OR ', $ors) . ')';
+        }
+        if ($s['risk']) {
+            $in = implode(',', array_fill(0, count($s['risk']), '?'));
+            $where[] = "e.risk_level IN ($in)";
+            array_push($params, ...$s['risk']);
+        }
+        if ($s['user'])    { $where[] = 'e.subject_user_id = ?'; $params[] = $s['user']['id']; }
+        if ($s['ip'])      { $where[] = 'e.ip_address = ?';      $params[] = $s['ip']; }
+        if ($s['country']) { $where[] = 'e.country = ?';         $params[] = $s['country']; }
+        if ($s['amount']['min'] !== null) { $where[] = 'e.amount >= ?'; $params[] = $s['amount']['min']; }
+        if ($s['amount']['max'] !== null) { $where[] = 'e.amount <= ?'; $params[] = $s['amount']['max']; }
+
+        $rows = Database::all(
+            "SELECT e.audit_ref, e.created_at, u.username, e.event_type, e.risk_level,
+                    e.amount, e.country, e.description
+             FROM audit_events e LEFT JOIN users u ON u.id = e.subject_user_id
+             WHERE " . implode(' AND ', $where) . "
+             ORDER BY e.created_at DESC LIMIT 50",
+            $params
+        );
+
+        $subject = $terms ? '"' . implode(' ', $terms) . '"' : 'that filter';
+        if (!$rows) {
+            return self::help("I searched the audit log for $subject but found nothing matching. "
+                . 'Try different words, or one of the examples below.');
+        }
+        return self::result(
+            count($rows) . " audit record(s) match $subject ($winLabel).",
+            'Audit log search: ' . ($terms ? implode(' ', $terms) : $winLabel),
+            $rows
+        );
+    }
+
     // -------------------------------------------------------------- helpers
 
     /** Map words in the question to an audit event_type. */
@@ -613,10 +741,15 @@ class AuditAssistant
         return match (true) {
             (bool) preg_match('/\bwithdraw/', $q)                 => 'withdrawal',
             (bool) preg_match('/\btransfer/', $q)                 => 'transfer',
+            (bool) preg_match('/\bsavings\b/', $q)                => 'savings_deposit',
             (bool) preg_match('/\bdeposit/', $q)                  => 'deposit',
             (bool) preg_match('/\bbill\b|\bpayment/', $q)         => 'bill_payment',
             (bool) preg_match('/\bairtime/', $q)                  => 'airtime',
             (bool) preg_match('/\bfailed login|\bfailed sign/', $q) => 'login_failed',
+            (bool) preg_match('/\bnew device|\bunknown device/', $q) => 'new_device_login',
+            (bool) preg_match('/\bregist|\bsign[- ]?up|\bnew (customer|account)/', $q) => 'user_registered',
+            (bool) preg_match('/\blog[- ]?out|\bsigned out/', $q) => 'logout',
+            (bool) preg_match('/\brole chang/', $q)               => 'role_changed',
             (bool) preg_match('/\blogin|\bsign[- ]?in/', $q)      => 'login_success',
             (bool) preg_match('/\bpassword/', $q)                 => 'password_changed',
             default                                               => null,
