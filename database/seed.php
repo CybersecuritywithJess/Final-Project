@@ -38,8 +38,8 @@ $hash = password_hash(PASSWORD, PASSWORD_BCRYPT, ['cost' => 12]);
 // silently — creating them is not itself "activity", so it writes no audit
 // events. The log is genuinely empty until the first real login.
 $staff = [
-    ['admin',   'System Administrator', 'admin@sentinelbank.co.ke',   'admin'],
-    ['auditor', 'Lead Auditor',         'auditor@sentinelbank.co.ke', 'auditor'],
+    ['admin',   'System Administrator', 'admin@unionbankofafrica.co.ke',   'admin'],
+    ['auditor', 'Lead Auditor',         'auditor@unionbankofafrica.co.ke', 'auditor'],
 ];
 
 $insert = $pdo->prepare(

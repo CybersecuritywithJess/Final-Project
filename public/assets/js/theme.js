@@ -1,5 +1,5 @@
 /**
- * The Sentinel Bank palette, in one place.
+ * The Union Bank of Africa palette, in one place.
  *
  * Loaded straight after the Tailwind CDN on every page, so a colour is never
  * redefined per-page. Deep forest green and gold — a bank's colours, not a

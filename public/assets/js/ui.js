@@ -159,9 +159,9 @@ async function mountShell(activePath, allowedRoles = null) {
     <aside class="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-stone-200 bg-white">
 
       <a href="/" class="flex items-center gap-2.5 border-b border-stone-200 px-5 py-4">
-        <span class="grid h-9 w-9 place-items-center rounded-lg bg-forest-800 text-sm font-bold text-white">S</span>
+        <span class="grid h-9 w-9 place-items-center rounded-lg bg-forest-800 text-sm font-bold text-white">UBA</span>
         <span class="font-display text-base font-semibold tracking-tight text-ink">
-          Sentinel<span class="text-forest-700">Bank</span>
+          Union Bank of <span class="text-forest-700">Africa</span>
         </span>
       </a>
 
