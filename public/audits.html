@@ -19,6 +19,16 @@
         <p class="mt-1 text-sm text-stone-500">
           Every event the bank has ever generated. Nothing is deleted.
         </p>
+        <div class="mt-2 flex items-center gap-4 text-xs text-stone-500">
+          <span class="inline-flex items-center gap-1.5">
+            <span class="inline-block h-3 w-3 rounded-sm border border-forest-200 bg-forest-50"></span>
+            Bank activity
+          </span>
+          <span class="inline-flex items-center gap-1.5">
+            <span class="inline-block h-3 w-3 rounded-sm border border-stone-200 bg-white"></span>
+            Audit system
+          </span>
+        </div>
       </div>
       <button id="export"
               class="rounded-lg bg-forest-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-forest-800">
@@ -196,6 +206,7 @@
             <thead class="border-b border-stone-200 bg-stone-50 text-left text-xs uppercase tracking-wide text-stone-500">
               <tr>
                 <th class="px-4 py-3 font-medium">Ref</th>
+                <th class="px-4 py-3 font-medium">Source</th>
                 <th class="px-4 py-3 font-medium">Risk</th>
                 <th class="px-4 py-3 font-medium">Event</th>
                 <th class="px-4 py-3 font-medium">Description</th>
@@ -233,10 +244,25 @@
       });
     }
 
+    // Green rows are the Demo Bank's own activity; white rows are the audit
+    // system and staff acting on it. The server decides which via `source`.
+    function rowTint(source) {
+      return source === 'bank'
+        ? 'bg-forest-50 hover:bg-forest-100'
+        : 'bg-white hover:bg-stone-50';
+    }
+
+    function sourceBadge(source) {
+      return source === 'bank'
+        ? '<span class="inline-flex items-center rounded-full bg-forest-100 px-2 py-0.5 text-xs font-medium text-forest-800">Bank</span>'
+        : '<span class="inline-flex items-center rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-600">System</span>';
+    }
+
     function row(e) {
       return `
-        <tr data-id="${e.id}" class="cursor-pointer transition hover:bg-stone-50">
+        <tr data-id="${e.id}" class="cursor-pointer transition ${rowTint(e.source)}">
           <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-stone-500">${e.audit_ref}</td>
+          <td class="px-4 py-3">${sourceBadge(e.source)}</td>
           <td class="px-4 py-3">${riskBadge(e.risk_level)}</td>
           <td class="whitespace-nowrap px-4 py-3 text-xs text-stone-600">${fmt.label(e.event_type)}</td>
           <td class="max-w-md px-4 py-3">
@@ -274,6 +300,7 @@
         <div class="mb-6 flex items-center gap-2">
           ${riskBadge(e.risk_level)}
           <span class="text-xs text-stone-500">score ${e.risk_score}/100</span>
+          ${sourceBadge(e.source)}
           <span class="ml-auto rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-600">${e.category}</span>
         </div>
 

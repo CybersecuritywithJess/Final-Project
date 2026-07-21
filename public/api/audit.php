@@ -36,6 +36,30 @@ const ALERT_STATUSES = [
     'false_positive', 'resolved', 'closed',
 ];
 
+// What separates a "bank" audit row from a "system" one. Bank rows are the Demo
+// Bank's own activity — a customer registering, logging in, moving money. System
+// rows are the audit machinery and staff acting on it — admins managing users,
+// auditors working alerts, report exports, AI assistant queries. Anything an
+// admin or auditor actor performed is system activity too (e.g. a staff login).
+// This one classifier drives the green/white colour split in the audit log.
+const SYSTEM_EVENT_TYPES = [
+    'user_created_by_admin', 'user_modified', 'user_deleted', 'admin_password_reset',
+    'risk_rule_changed', 'role_changed', 'audit_viewed', 'assistant_query',
+    'report_exported', 'alert_status_changed', 'alert_note_added',
+];
+
+/** Classify an audit row as 'bank' (customer activity) or 'system' (staff/engine). */
+function eventSource(array $event): string
+{
+    if (in_array($event['actor_role'] ?? '', ['admin', 'auditor'], true)) {
+        return 'system';
+    }
+    if (in_array($event['event_type'] ?? '', SYSTEM_EVENT_TYPES, true)) {
+        return 'system';
+    }
+    return 'bank';
+}
+
 $user = Auth::requireRole('auditor', 'admin');
 $ctx = Context::fromRequest();
 
@@ -428,7 +452,7 @@ function export(array $user, Context $ctx): never
     [$clause, $params] = buildFilters();
 
     $rows = Database::all(
-        'SELECT e.audit_ref, e.created_at, e.event_type, e.category, e.description,
+        'SELECT e.audit_ref, e.created_at, e.event_type, e.actor_role, e.category, e.description,
                 u.username, u.email, e.risk_level, e.risk_score, e.amount,
                 e.ip_address, e.browser, e.os, e.device_type, e.country, e.city,
                 t.reference AS txn_ref '
@@ -436,6 +460,12 @@ function export(array $user, Context $ctx): never
         ' ORDER BY e.created_at DESC LIMIT 10000',
         $params
     );
+
+    // Tag each row bank/system so the split survives into the exported file.
+    foreach ($rows as &$exportRow) {
+        $exportRow['source'] = eventSource($exportRow);
+    }
+    unset($exportRow);
 
     // Exporting data is itself an auditable act.
     AuditEngine::record([
@@ -449,7 +479,7 @@ function export(array $user, Context $ctx): never
 
     Response::csv(
         $rows,
-        ['audit_ref', 'created_at', 'event_type', 'category', 'description', 'username',
+        ['audit_ref', 'created_at', 'source', 'event_type', 'category', 'description', 'username',
          'email', 'risk_level', 'risk_score', 'amount', 'ip_address', 'browser', 'os',
          'device_type', 'country', 'city', 'txn_ref'],
         'audit-report-' . date('Y-m-d') . '.csv'
@@ -484,5 +514,6 @@ function meta(): never
 function hydrate(array $event): array
 {
     $event['metadata'] = json_decode($event['metadata'] ?? '{}', true) ?: [];
+    $event['source'] = eventSource($event);
     return $event;
 }
