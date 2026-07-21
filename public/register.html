@@ -144,6 +144,12 @@
           </p>
         </div>
 
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-stone-700">Confirm password</label>
+          <input id="confirm_password" type="password" required placeholder="Re-enter your password" class="input" />
+          <p id="pw-match" class="mt-1.5 hidden text-xs text-rose-600">Passwords don't match.</p>
+        </div>
+
         <button type="submit" id="submit-btn"
                 class="w-full rounded-full bg-forest-800 px-4 py-3 text-sm font-semibold text-white shadow-lg
                        shadow-forest-800/15 transition hover:bg-forest-900 disabled:opacity-50">
@@ -216,8 +222,34 @@
     b.addEventListener('click', () => selectRole(b.dataset.role)));
   selectRole('customer');
 
+  // --- confirm-password: warn as they type, block a mismatched submit
+  const passwordInput = document.getElementById('password');
+  const confirmInput = document.getElementById('confirm_password');
+  const matchHint = document.getElementById('pw-match');
+
+  function passwordsMatch() {
+    return confirmInput.value === passwordInput.value;
+  }
+
+  function updateMatchHint() {
+    // Only complain once they've started confirming.
+    const mismatch = confirmInput.value !== '' && !passwordsMatch();
+    matchHint.classList.toggle('hidden', !mismatch);
+    confirmInput.classList.toggle('border-rose-400', mismatch);
+  }
+
+  passwordInput.addEventListener('input', updateMatchHint);
+  confirmInput.addEventListener('input', updateMatchHint);
+
   document.getElementById('register-form').addEventListener('submit', async (event) => {
     event.preventDefault();
+
+    if (!passwordsMatch()) {
+      updateMatchHint();
+      showBanner('The passwords you entered do not match.');
+      confirmInput.focus();
+      return;
+    }
 
     const button = document.getElementById('submit-btn');
     button.disabled = true;
