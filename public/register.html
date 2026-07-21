@@ -76,9 +76,6 @@
       </a>
 
       <h1 class="font-display text-3xl font-semibold leading-tight">Create an account</h1>
-      <p class="mt-2 text-sm text-stone-500">
-        Choose the role you're signing up as.
-      </p>
 
       <!-- Sign up straight from a Google account. Hidden unless configured. -->
       <div id="google-block" class="mb-6 hidden">
@@ -111,7 +108,6 @@
               Administrator
             </button>
           </div>
-          <p class="mt-1.5 text-xs text-stone-400" id="role-hint"></p>
         </div>
 
         <div>
@@ -139,9 +135,6 @@
         <div>
           <label class="mb-1.5 block text-sm font-semibold text-stone-700">Password</label>
           <input id="password" type="password" required placeholder="At least 8 characters" class="input" />
-          <p class="mt-1.5 text-xs text-stone-400">
-            Hashed with bcrypt before it touches the database.
-          </p>
         </div>
 
         <div>
@@ -200,11 +193,6 @@
 
   // --- role picker
   let role = 'customer';
-  const HINTS = {
-    customer: 'You get a checking and a savings account, and land on the Demo Bank.',
-    auditor:  'You investigate activity from the Demo Bank, and land on the Audit Log.',
-    admin:    'You manage users and risk thresholds, and land on Administration.',
-  };
 
   const ON  = 'border-forest-700 bg-forest-50 text-forest-800';
   const OFF = 'border-stone-300 bg-white text-stone-600 hover:border-forest-300';
@@ -215,7 +203,6 @@
       b.className = 'role-opt rounded-lg border px-2 py-2.5 text-center text-xs font-semibold transition '
                     + (b.dataset.role === role ? ON : OFF);
     });
-    document.getElementById('role-hint').textContent = HINTS[role];
   }
 
   document.querySelectorAll('.role-opt').forEach((b) =>

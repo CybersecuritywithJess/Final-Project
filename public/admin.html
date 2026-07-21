@@ -15,9 +15,6 @@
   <main class="ml-60 p-8">
     <header class="mb-6">
       <h1 class="text-2xl font-bold">Administration</h1>
-      <p class="mt-1 text-sm text-stone-500">
-        Everything you do on this page is recorded as a high-risk audit event.
-      </p>
     </header>
 
     <div class="mb-6 flex gap-2" id="tabs"></div>
@@ -241,11 +238,6 @@
       const { rules } = await API.get('admin.php?action=rules');
 
       content.innerHTML = `
-        <p class="mb-4 max-w-2xl text-sm text-stone-500">
-          The fraud rules read these numbers at detection time — change one and the
-          engine behaves differently on the very next transaction. No redeploy, no code edit.
-        </p>
-
         <div class="space-y-3">
           ${rules.map(ruleCard).join('')}
         </div>`;

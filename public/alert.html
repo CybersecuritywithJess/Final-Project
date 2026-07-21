@@ -72,10 +72,7 @@
 
             <!-- Workflow -->
             <section class="rounded-xl border border-stone-200 bg-white p-5">
-              <h2 class="mb-1 text-sm font-semibold text-ink">Investigation status</h2>
-              <p class="mb-4 text-xs text-stone-500">
-                Changing this is recorded against your name in the audit log.
-              </p>
+              <h2 class="mb-4 text-sm font-semibold text-ink">Investigation status</h2>
               <div class="flex flex-wrap gap-2">
                 ${STATUSES.map(([value, label]) => {
                   const active = a.status === value;

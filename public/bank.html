@@ -15,9 +15,6 @@
   <main class="ml-60 p-8">
     <header class="mb-8">
       <h1 class="text-2xl font-bold">My Bank</h1>
-      <p class="mt-1 text-sm text-stone-500">
-        Every action you take here is recorded by the audit system.
-      </p>
     </header>
 
     <div id="content"></div>
@@ -63,7 +60,7 @@
           <section class="lg:col-span-2 space-y-4">
             <h2 class="text-sm font-semibold uppercase tracking-wide text-stone-500">Move money</h2>
 
-            ${actionCard('deposit', 'Deposit', 'Add funds to an account', `
+            ${actionCard('deposit', 'Deposit', `
               <input type="number" id="deposit-amount" placeholder="Amount" min="1" step="any" class="${INPUT}" />
               <select id="deposit-account" class="${INPUT}">
                 <option value="checking">Checking</option>
@@ -71,22 +68,20 @@
               </select>
             `)}
 
-            ${actionCard('withdraw', 'Withdraw', 'Large withdrawals get flagged', `
+            ${actionCard('withdraw', 'Withdraw', `
               <input type="number" id="withdraw-amount" placeholder="Amount" min="1" step="any" class="${INPUT}" />
               <select id="withdraw-account" class="${INPUT}">
                 <option value="checking">Checking</option>
                 <option value="savings">Savings</option>
               </select>
-              <p class="text-xs text-stone-400">Try 600,000 to trip the fraud engine.</p>
             `)}
 
-            ${actionCard('transfer', 'Transfer', 'Send to another account', `
+            ${actionCard('transfer', 'Transfer', `
               <input type="number" id="transfer-amount" placeholder="Amount" min="1" step="any" class="${INPUT}" />
               <input id="transfer-to" placeholder="Recipient account number" class="${INPUT}" />
-              <p class="text-xs text-stone-400">Several in a row looks like structuring.</p>
             `)}
 
-            ${actionCard('pay', 'Pay a bill', 'Utilities and airtime', `
+            ${actionCard('pay', 'Pay a bill', `
               <input type="number" id="pay-amount" placeholder="Amount" min="1" step="any" class="${INPUT}" />
               <input id="pay-biller" placeholder="Biller (e.g. KPLC Prepaid)" class="${INPUT}" />
               <select id="pay-kind" class="${INPUT}">
@@ -153,13 +148,10 @@
         </div>`;
     }
 
-    function actionCard(id, title, subtitle, fields) {
+    function actionCard(id, title, fields) {
       return `
         <form data-action="${id}" class="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-          <div>
-            <h3 class="text-sm font-semibold text-ink">${title}</h3>
-            <p class="text-xs text-stone-500">${subtitle}</p>
-          </div>
+          <h3 class="text-sm font-semibold text-ink">${title}</h3>
           ${fields}
           <button type="submit"
                   class="w-full rounded-lg bg-forest-800 px-3 py-2 text-sm font-semibold text-white transition hover:bg-forest-900 disabled:opacity-50">

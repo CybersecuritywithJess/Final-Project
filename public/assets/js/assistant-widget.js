@@ -108,8 +108,7 @@
                         text-stone-700 transition hover:border-forest-700 hover:text-forest-800">${esc(s)}</button>`).join('');
       thread.insertAdjacentHTML('beforeend', `
         <div class="rounded-xl border border-stone-200 bg-white p-3">
-          <p class="text-xs text-stone-600">Ask me about logins, transactions, alerts, or a customer.</p>
-          <div class="mt-2.5 flex flex-wrap gap-1.5">${chips}</div>
+          <div class="flex flex-wrap gap-1.5">${chips}</div>
         </div>`);
       wireChips();
     }
