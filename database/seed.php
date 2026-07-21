@@ -1,61 +1,35 @@
 <?php
 
 /**
- * Bootstrap the system with the two staff accounts you need to get in — an
- * administrator and an auditor — and NOTHING else.
+ * Reset the system to completely empty — no users at all.
  *
- * There is deliberately no fabricated history here: no demo customers, no
- * invented transactions, no planted fraud. The audit log and the alert queue
- * start empty and fill only with things that genuinely happen once people use
- * the app. What you see in the dashboard is real.
+ * There are deliberately no pre-made accounts: no demo customers, no bootstrap
+ * admin or auditor, no invented history. Everything — including the very first
+ * administrator — is created by real people signing up. The audit log and the
+ * alert queue start empty and fill only with what genuinely happens.
  *
  *   php database/seed.php
  *
- * Customers register themselves from the sign-up page; real banking activity
- * then generates the audit events, and the fraud rules raise alerts on their
- * own when a real pattern trips them.
+ * After running this, open the sign-up page and register the first account.
+ * Choose "Administrator" (or "Auditor") on the role picker to create a staff
+ * login; choose "Demo Bank user" for a customer.
  */
 
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/Database.php';
-require_once __DIR__ . '/../src/Auth.php';
-
-const PASSWORD = 'Password123!';
 
 $pdo = Database::connect();
 
-echo "Clearing all existing data...\n";
+echo "Clearing all data (users, accounts, transactions, audit events, alerts)...\n";
 $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
 foreach (['alert_notes', 'alerts', 'audit_events', 'transactions', 'devices', 'accounts', 'users'] as $table) {
     $pdo->exec("TRUNCATE TABLE $table");
 }
 $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
 
-$hash = password_hash(PASSWORD, PASSWORD_BCRYPT, ['cost' => 12]);
-
-// The only rows we create: the accounts that let you sign in. They are inserted
-// silently — creating them is not itself "activity", so it writes no audit
-// events. The log is genuinely empty until the first real login.
-$staff = [
-    ['admin',   'System Administrator', 'admin@unionbankofafrica.co.ke',   'admin'],
-    ['auditor', 'Lead Auditor',         'auditor@unionbankofafrica.co.ke', 'auditor'],
-];
-
-$insert = $pdo->prepare(
-    'INSERT INTO users (username, full_name, email, password_hash, role, auth_provider)
-     VALUES (?, ?, ?, ?, ?, \'password\')'
-);
-
-foreach ($staff as [$username, $fullName, $email, $role]) {
-    $insert->execute([$username, $fullName, $email, $hash, $role]);
-    echo "  created $role account: $username\n";
-}
-
 echo "\n";
-echo "Done. The system is clean — no demo data.\n\n";
-echo "  Sign in to bootstrap the system:\n";
-echo "    Admin     username: admin      password: " . PASSWORD . "\n";
-echo "    Auditor   username: auditor    password: " . PASSWORD . "\n\n";
-echo "  Everything else — customers, transactions, audit events, alerts —\n";
-echo "  is created by real use from here on.\n";
+echo "Done. The system is completely empty — no users, no demo data.\n\n";
+echo "  Next step: open http://localhost:8000/register.html and create the\n";
+echo "  first account. Pick \"Administrator\" on the role picker for an admin\n";
+echo "  login, \"Auditor\" for an auditor, or \"Demo Bank user\" for a customer.\n";

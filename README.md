@@ -51,23 +51,18 @@ no cloud services.
 C:\xampp\mysql\bin\mysql.exe -u root < database/schema.sql
 ```
 
-**3. Create the two staff sign-in accounts:**
-
-```bash
-C:\xampp\php\php.exe database/seed.php
-```
-
-This adds only an `admin` and an `auditor` account so you can get in. It plants
-**no** demo customers, transactions or alerts — the audit log and alert queue
-start empty and fill only with real activity once people use the app.
-
-**4. Start the app:**
+**3. Start the app:**
 
 ```bash
 C:\xampp\php\php.exe -S localhost:8000 -t public
 ```
 
-Then open **<http://localhost:8000>**.
+Then open **<http://localhost:8000>** and **create the first account** from the
+sign-up page (see *Create the first account* below). The system ships empty —
+there are no pre-made users, so the first person to register bootstraps it.
+
+> `database/seed.php` is a reset tool: running it **wipes every user and all
+> data** back to empty. You only need it to start over, not on first install.
 
 > Prefer Apache? Copy the project into `C:\xampp\htdocs\`, point Apache's
 > document root at the `public/` folder, and start Apache instead of step 4.
@@ -123,20 +118,23 @@ email already matches, and — like everything else — is written to the audit 
 If you already had a database before adding this feature, apply the migration
 once: `mysql -u root audit_tracking < database/migrations/001_google_auth.sql`.
 
-### Sign in
+### Create the first account
 
-The two staff accounts both use the password **`Password123!`**
+The system ships **completely empty** — there are no pre-made accounts of any
+kind. Open the sign-up page and register the first user, choosing a role on the
+picker:
 
-| Username  | Role     | What they can do                                              |
-|-----------|----------|--------------------------------------------------------------|
-| `admin`   | Admin    | Manage users, retune the fraud thresholds, see system health |
-| `auditor` | Auditor  | The dashboard, the alert queue, the audit log, investigations |
+| Role on sign-up | What it can do                                               |
+|-----------------|-------------------------------------------------------------|
+| Administrator   | Manage users, retune the fraud thresholds, see system health |
+| Auditor         | The dashboard, the alert queue, the audit log, investigations |
+| Demo Bank user  | The customer banking app (checking + savings)                |
 
-There are no pre-made customers. To generate real activity, open the sign-up
-page, create a **Demo Bank user**, and start banking — every login, deposit,
-withdrawal and transfer is recorded, and the fraud rules raise alerts on their
-own when a real pattern trips them (e.g. withdraw more than KES 500,000, or log
-in from a different country using the "Simulate location" panel).
+Create an **Administrator** first if you want the admin panel. Then create a
+**Demo Bank user** and start banking — every login, deposit, withdrawal and
+transfer is recorded, and the fraud rules raise alerts on their own when a real
+pattern trips them (e.g. withdraw more than KES 500,000, or log in from a
+different country using the "Simulate location" panel).
 
 ---
 
