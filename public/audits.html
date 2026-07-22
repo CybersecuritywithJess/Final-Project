@@ -40,6 +40,8 @@
           <input id="f-search" name="search" placeholder="Search description, user, IP, audit ref, transaction ref…"
                  class="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm placeholder-stone-400 outline-none focus:border-forest-700 focus:ring-1 focus:ring-forest-700" />
         </div>
+        <input id="f-month" name="month" type="month" aria-label="Filter by month" title="Filter by month"
+               class="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-700 outline-none focus:border-forest-700" />
         <select id="f-risk_level" name="risk_level" class="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-forest-700">
           <option value="">Any risk level</option>
         </select>
@@ -103,7 +105,7 @@
   <script src="/assets/js/assistant-widget.js"></script>
   <script>
     const content = document.getElementById('content');
-    const FILTER_KEYS = ['search', 'risk_level', 'category', 'event_type', 'user_id',
+    const FILTER_KEYS = ['search', 'risk_level', 'category', 'month', 'event_type', 'user_id',
                          'country', 'ip', 'min_amount', 'max_amount', 'from', 'to'];
     let page = 1;
 

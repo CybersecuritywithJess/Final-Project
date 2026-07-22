@@ -138,6 +138,13 @@ function buildFilters(): array
         }
     }
 
+    // Filter to a single calendar month. The month picker sends "YYYY-MM";
+    // anything else is ignored so a malformed value can't skew the results.
+    if (!empty($_GET['month']) && preg_match('/^\d{4}-\d{2}$/', (string) $_GET['month'])) {
+        $where[] = "DATE_FORMAT(e.created_at, '%Y-%m') = ?";
+        $params[] = $_GET['month'];
+    }
+
     return [$where ? 'WHERE ' . implode(' AND ', $where) : '', $params];
 }
 
