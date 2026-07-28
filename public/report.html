@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Compliance report — Audit Tracking System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/assets/js/theme.js"></script>
+  <style>
+    /* Turn the app view into a clean paper document when printing. */
+    @media print {
+      aside,
+      #report-controls,
+      .no-print { display: none !important; }
+      main { margin-left: 0 !important; padding: 0 !important; }
+      body { background: #fff !important; }
+      #report {
+        box-shadow: none !important;
+        border: 0 !important;
+        max-width: none !important;
+        margin: 0 !important;
+      }
+      .page-break { break-before: page; }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#fdfcfa] font-sans text-ink antialiased">
+
+  <main class="ml-60 p-8">
+
+    <div id="report-controls" class="mb-6 flex flex-wrap items-end gap-3">
+      <div>
+        <label class="mb-1 block text-xs font-medium text-stone-500">Month</label>
+        <input id="month" type="month"
+               class="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-forest-700" />
+      </div>
+      <span class="pb-2.5 text-sm text-stone-400">or</span>
+      <div>
+        <label class="mb-1 block text-xs font-medium text-stone-500">From</label>
+        <input id="from" type="date"
+               class="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-forest-700" />
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-medium text-stone-500">To</label>
+        <input id="to" type="date"
+               class="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-forest-700" />
+      </div>
+      <button id="generate"
+              class="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:border-forest-700 hover:text-forest-800">
+        Generate
+      </button>
+      <button id="save-pdf"
+              class="rounded-lg bg-forest-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-forest-900">
+        Save as PDF
+      </button>
+    </div>
+
+    <div id="content"></div>
+  </main>
+
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    const content = document.getElementById('content');
+
+    async function init() {
+      const user = await mountShell('/report.html', ['auditor', 'admin']);
+      if (!user) return;
+
+      document.getElementById('generate').addEventListener('click', generate);
+      document.getElementById('save-pdf').addEventListener('click', () => window.print());
+      // Selecting a month clears an explicit range, and vice-versa.
+      document.getElementById('month').addEventListener('change', () => {
+        document.getElementById('from').value = '';
+        document.getElementById('to').value = '';
+      });
+
+      await generate();
+    }
+
+    async function generate() {
+      loading(content);
+      const params = {};
+      const month = document.getElementById('month').value;
+      const from = document.getElementById('from').value;
+      const to = document.getElementById('to').value;
+      if (month) params.month = month;
+      if (from) params.from = from;
+      if (to) params.to = to;
+
+      try {
+        const r = await API.get('audit.php?action=report', params);
+        render(r);
+      } catch (err) {
+        content.innerHTML = `<p class="text-sm text-rose-600">${esc(err.message)}</p>`;
+      }
+    }
+
+    function periodLabel(meta) {
+      if (meta.from && meta.to) return `${fmt.date(meta.from)} — ${fmt.date(meta.to)}`;
+      if (meta.from) return `From ${fmt.date(meta.from)}`;
+      if (meta.to) return `Up to ${fmt.date(meta.to)}`;
+      return 'All time';
+    }
+
+    function tableRows(rows, cells) {
+      if (!rows.length) return `<tr><td class="py-3 text-stone-400" colspan="9">Nothing recorded for this period.</td></tr>`;
+      return rows.map((row) => `
+        <tr class="border-t border-stone-200">
+          ${cells(row)}
+        </tr>`).join('');
+    }
+
+    function render(r) {
+      const seal = r.integrity.ok
+        ? `<span class="inline-flex items-center gap-1.5 rounded-full bg-forest-50 px-3 py-1 text-xs font-bold text-forest-800 ring-1 ring-forest-200">
+             ● Verified intact · ${fmt.number(r.integrity.checked)} events
+           </span>`
+        : `<span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 ring-1 ring-rose-200">
+             ● Tampering detected at ${esc((r.integrity.first_broken || {}).audit_ref || '—')}
+           </span>`;
+
+      const riskOrder = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+
+      content.innerHTML = `
+        <article id="report" class="mx-auto max-w-3xl rounded-2xl border border-stone-200 bg-white p-10 shadow-sm">
+
+          <header class="flex items-start justify-between gap-6 border-b border-stone-200 pb-6">
+            <div class="flex items-center gap-3">
+              <span class="grid h-11 w-11 place-items-center rounded-lg bg-forest-800 text-sm font-bold text-white">UBA</span>
+              <div>
+                <div class="font-display text-lg font-semibold tracking-tight">
+                  Union Bank of <span class="text-forest-700">Africa</span>
+                </div>
+                <div class="text-xs uppercase tracking-[0.2em] text-gold-600">Compliance report</div>
+              </div>
+            </div>
+            <div class="text-right text-xs text-stone-500">
+              <div class="font-semibold text-ink">${esc(periodLabel(r.meta))}</div>
+              <div class="mt-1">Generated ${fmt.dateTime(r.meta.generated_at)}</div>
+              <div>by ${esc(r.meta.generated_by.full_name)} · ${esc(roleLabel(r.meta.generated_by.role))}</div>
+            </div>
+          </header>
+
+          <div class="mt-5">${seal}</div>
+
+          <!-- headline figures -->
+          <section class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
+            ${kpi('Audit events', fmt.number(r.totals.events))}
+            ${kpi('Alerts raised', fmt.number(r.totals.alerts))}
+            ${kpi('Critical events', fmt.number(r.risk_summary.CRITICAL))}
+            ${kpi('Deposits', fmt.money(r.totals.deposits))}
+            ${kpi('Withdrawals', fmt.money(r.totals.withdrawals))}
+            ${kpi('Transfers', fmt.money(r.totals.transfers))}
+          </section>
+
+          <!-- risk distribution -->
+          <section class="mt-9">
+            <h2 class="mb-3 font-display text-base font-semibold text-ink">Risk distribution</h2>
+            <table class="w-full text-sm">
+              <thead class="text-left text-xs uppercase tracking-wide text-stone-400">
+                <tr><th class="pb-2">Level</th><th class="pb-2 text-right">Events</th></tr>
+              </thead>
+              <tbody>
+                ${riskOrder.map((lvl) => `
+                  <tr class="border-t border-stone-200">
+                    <td class="py-2">${riskBadge(lvl)}</td>
+                    <td class="py-2 text-right font-medium text-stone-700">${fmt.number(r.risk_summary[lvl] || 0)}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </section>
+
+          <!-- events by category -->
+          <section class="mt-9">
+            <h2 class="mb-3 font-display text-base font-semibold text-ink">Events by category</h2>
+            <table class="w-full text-sm">
+              <thead class="text-left text-xs uppercase tracking-wide text-stone-400">
+                <tr><th class="pb-2">Category</th><th class="pb-2 text-right">Events</th></tr>
+              </thead>
+              <tbody>
+                ${tableRows(r.category_breakdown, (row) => `
+                  <td class="py-2 text-stone-700">${esc(row.category)}</td>
+                  <td class="py-2 text-right font-medium text-stone-700">${fmt.number(row.count)}</td>`)}
+              </tbody>
+            </table>
+          </section>
+
+          <!-- fraud rules -->
+          <section class="mt-9">
+            <h2 class="mb-3 font-display text-base font-semibold text-ink">Fraud rules triggered</h2>
+            <table class="w-full text-sm">
+              <thead class="text-left text-xs uppercase tracking-wide text-stone-400">
+                <tr>
+                  <th class="pb-2">Rule</th>
+                  <th class="pb-2 text-right">Raised</th>
+                  <th class="pb-2 text-right">Confirmed</th>
+                  <th class="pb-2 text-right">False</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows(r.alerts_by_rule, (row) => `
+                  <td class="py-2 text-stone-700">${esc(fmt.label(row.rule_key))}</td>
+                  <td class="py-2 text-right font-medium text-stone-700">${fmt.number(row.count)}</td>
+                  <td class="py-2 text-right text-rose-700">${fmt.number(row.confirmed || 0)}</td>
+                  <td class="py-2 text-right text-stone-500">${fmt.number(row.false_positives || 0)}</td>`)}
+              </tbody>
+            </table>
+          </section>
+
+          <!-- top risky customers -->
+          <section class="mt-9">
+            <h2 class="mb-3 font-display text-base font-semibold text-ink">Highest-risk customers</h2>
+            <table class="w-full text-sm">
+              <thead class="text-left text-xs uppercase tracking-wide text-stone-400">
+                <tr>
+                  <th class="pb-2">Customer</th>
+                  <th class="pb-2 text-right">Events</th>
+                  <th class="pb-2 text-right">Peak risk</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows(r.top_risky_users, (row) => `
+                  <td class="py-2 text-stone-700">${esc(row.full_name)} <span class="text-stone-400">@${esc(row.username)}</span></td>
+                  <td class="py-2 text-right font-medium text-stone-700">${fmt.number(row.events)}</td>
+                  <td class="py-2 text-right font-semibold text-${riskColor(row.peak_risk)}-700">${fmt.number(row.peak_risk)}</td>`)}
+              </tbody>
+            </table>
+          </section>
+
+          <!-- integrity statement -->
+          <footer class="mt-10 rounded-xl bg-stone-50 p-5 text-xs leading-relaxed text-stone-500">
+            <p class="font-semibold text-stone-600">Integrity attestation</p>
+            <p class="mt-1">
+              ${r.integrity.ok
+                ? `The audit log was cryptographically verified at generation time: ${fmt.number(r.integrity.checked)} events form an unbroken hash chain, so the figures above are drawn from an evidence trail with no detected tampering.`
+                : `Warning: the audit log failed verification. The hash chain breaks at ${esc((r.integrity.first_broken || {}).audit_ref || '—')} — ${esc((r.integrity.first_broken || {}).reason || '')} The figures above may not reflect a complete or unaltered record.`}
+            </p>
+            <p class="mt-2 break-all text-[11px] text-stone-400">Chain head: ${esc(r.integrity.head_hash)}</p>
+          </footer>
+
+        </article>`;
+    }
+
+    function kpi(label, value) {
+      return `
+        <div class="rounded-xl border border-stone-200 p-4">
+          <div class="text-xs text-stone-500">${label}</div>
+          <div class="mt-1 font-display text-2xl font-semibold text-ink">${value}</div>
+        </div>`;
+    }
+
+    init();
+  </script>
+</body>
+</html>

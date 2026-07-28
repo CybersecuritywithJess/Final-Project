@@ -290,6 +290,17 @@
       content.innerHTML = `
         <div class="grid gap-6 lg:grid-cols-2">
 
+          <section class="rounded-xl border border-stone-200 bg-white p-5 lg:col-span-2">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+              <h2 class="text-sm font-semibold text-ink">Audit log integrity</h2>
+              <button id="verify-integrity"
+                class="shrink-0 rounded-lg bg-forest-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-forest-900 disabled:opacity-60">
+                Verify integrity
+              </button>
+            </div>
+            <div id="integrity-result" class="mt-4 text-sm text-stone-400">Not checked yet.</div>
+          </section>
+
           <section class="rounded-xl border border-stone-200 bg-white p-5">
             <h2 class="mb-4 text-sm font-semibold text-ink">System health</h2>
             <dl class="space-y-0 divide-y divide-stone-200 text-sm">
@@ -332,6 +343,46 @@
                  </dl>`}
           </section>
         </div>`;
+
+      document.getElementById('verify-integrity').addEventListener('click', runIntegrityCheck);
+    }
+
+    async function runIntegrityCheck() {
+      const box = document.getElementById('integrity-result');
+      const btn = document.getElementById('verify-integrity');
+      btn.disabled = true;
+      box.className = 'mt-4 text-sm text-stone-400';
+      box.textContent = 'Verifying…';
+
+      try {
+        const r = await API.get('admin.php?action=integrity');
+        box.className = 'mt-4';
+
+        if (r.ok) {
+          box.innerHTML = `
+            <div class="flex items-center gap-2 rounded-lg bg-forest-50 px-4 py-3 text-sm ring-1 ring-forest-200">
+              <span class="text-forest-600">●</span>
+              <span class="font-semibold text-forest-800">Chain intact</span>
+              <span class="text-forest-700/70">— ${fmt.number(r.checked)} events verified</span>
+            </div>`;
+        } else {
+          const b = r.first_broken || {};
+          box.innerHTML = `
+            <div class="rounded-lg bg-rose-50 px-4 py-3 text-sm ring-1 ring-rose-200">
+              <div class="flex items-center gap-2 font-semibold text-rose-700">
+                <span>●</span> Tampering detected at ${esc(b.audit_ref || '—')}
+              </div>
+              <p class="mt-1 text-rose-700/80">
+                ${esc(b.reason || '')} ${fmt.number(r.checked)} events verified before the break.
+              </p>
+            </div>`;
+        }
+      } catch (err) {
+        box.className = 'mt-4 text-sm text-rose-600';
+        box.textContent = err.message;
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     function row(label, value) {

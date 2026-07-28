@@ -12,6 +12,7 @@
  *   PATCH ?action=alert-status&id= move an alert through the workflow
  *   POST  ?action=alert-note&id=   add an investigation note
  *   GET   ?action=export           download the filtered log as CSV
+ *   GET   ?action=report           compliance-report figures (+ integrity status)
  *   GET   ?action=meta             values for the filter dropdowns
  *
  * Read-heavy by design: auditors investigate, they do not move money. The only
@@ -45,7 +46,8 @@ const ALERT_STATUSES = [
 const SYSTEM_EVENT_TYPES = [
     'user_created_by_admin', 'user_modified', 'user_deleted', 'admin_password_reset',
     'risk_rule_changed', 'role_changed', 'audit_viewed', 'assistant_query',
-    'report_exported', 'alert_status_changed', 'alert_note_added',
+    'report_exported', 'report_generated', 'integrity_verified',
+    'alert_status_changed', 'alert_note_added',
 ];
 
 /** Classify an audit row as 'bank' (customer activity) or 'system' (staff/engine). */
@@ -73,6 +75,7 @@ switch (action()) {
     case 'alert-status':  requireMethod('PATCH', 'POST'); alertStatus($user, $ctx); break;
     case 'alert-note':    requireMethod('POST'); alertNote($user, $ctx); break;
     case 'export':        export($user, $ctx); break;
+    case 'report':        report($user, $ctx); break;
     case 'meta':          meta(); break;
     default:              Response::error('Unknown action', 404);
 }
@@ -491,6 +494,112 @@ function export(array $user, Context $ctx): never
          'device_type', 'country', 'city', 'txn_ref'],
         'audit-report-' . date('Y-m-d') . '.csv'
     );
+}
+
+// ------------------------------------------------------------------ REPORT
+
+/**
+ * The figures behind the printable compliance report. Reuses the same aggregates
+ * the dashboard shows, scoped to an optional reporting period, and attaches the
+ * live result of the audit-log integrity check so the report can attest that the
+ * evidence it summarises has not been tampered with.
+ */
+function report(array $user, Context $ctx): never
+{
+    // Optional reporting period. A "YYYY-MM" month is expanded to its full span;
+    // otherwise explicit from/to dates are honoured. Anything malformed is ignored.
+    $from = (!empty($_GET['from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $_GET['from'])) ? $_GET['from'] : null;
+    $to   = (!empty($_GET['to'])   && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $_GET['to']))   ? $_GET['to']   : null;
+    if (!empty($_GET['month']) && preg_match('/^\d{4}-\d{2}$/', (string) $_GET['month'])) {
+        $from = $_GET['month'] . '-01';
+        $to   = date('Y-m-t', strtotime($from));
+    }
+
+    // A period clause for any table with a created_at column, AND-appended safely.
+    $period = function (array $extra = []) use ($from, $to): array {
+        $clauses = $extra;
+        $params  = [];
+        if ($from) { $clauses[] = 'DATE(created_at) >= ?'; $params[] = $from; }
+        if ($to)   { $clauses[] = 'DATE(created_at) <= ?'; $params[] = $to; }
+        return [$clauses ? ' WHERE ' . implode(' AND ', $clauses) : '', $params];
+    };
+
+    [$evWhere, $evParams] = $period();
+
+    $riskSummary = array_fill_keys(RiskEngine::LEVELS, 0);
+    foreach (Database::all("SELECT risk_level, COUNT(*) n FROM audit_events$evWhere GROUP BY risk_level", $evParams) as $r) {
+        $riskSummary[$r['risk_level']] = (int) $r['n'];
+    }
+
+    [$alWhere, $alParams] = $period();
+    $alertsByStatus = Database::all("SELECT status, COUNT(*) n FROM alerts$alWhere GROUP BY status", $alParams);
+
+    $money = function (string $typeClause) use ($period): float {
+        [$where, $params] = $period(["status <> 'failed'", $typeClause]);
+        return (float) Database::value("SELECT COALESCE(SUM(amount), 0) FROM transactions$where", $params);
+    };
+
+    [$userWhere, $userParams] = $period(["u.role = 'customer'"]);
+    // The period clause uses a bare created_at; here it must be the event's column.
+    $userWhere = str_replace('created_at', 'e.created_at', $userWhere);
+
+    $result = [
+        'meta' => [
+            'generated_by' => ['username' => $user['username'], 'role' => $user['role'], 'full_name' => $user['full_name']],
+            'generated_at' => date('Y-m-d H:i:s'),
+            'from'         => $from,
+            'to'           => $to,
+        ],
+
+        'totals' => [
+            'events'      => (int) Database::value("SELECT COUNT(*) FROM audit_events$evWhere", $evParams),
+            'alerts'      => (int) array_sum(array_column($alertsByStatus, 'n')),
+            'deposits'    => $money("type IN ('deposit', 'savings_deposit')"),
+            'withdrawals' => $money("type = 'withdrawal'"),
+            'transfers'   => $money("type = 'transfer'"),
+        ],
+
+        'risk_summary'     => $riskSummary,
+        'alerts_by_status' => $alertsByStatus,
+
+        'category_breakdown' => Database::all(
+            "SELECT category, COUNT(*) count FROM audit_events$evWhere GROUP BY category ORDER BY count DESC",
+            $evParams
+        ),
+
+        'alerts_by_rule' => Database::all(
+            "SELECT rule_key, COUNT(*) count,
+                    SUM(status = 'confirmed_fraud') confirmed,
+                    SUM(status = 'false_positive')  false_positives
+               FROM alerts$alWhere GROUP BY rule_key ORDER BY count DESC",
+            $alParams
+        ),
+
+        'top_risky_users' => Database::all(
+            "SELECT u.username, u.full_name, COUNT(e.id) events,
+                    COALESCE(MAX(e.risk_score), 0) peak_risk
+               FROM audit_events e JOIN users u ON u.id = e.subject_user_id
+              $userWhere
+              GROUP BY u.id ORDER BY peak_risk DESC, events DESC LIMIT 10",
+            $userParams
+        ),
+
+        // Integrity is a property of the whole chain, so it is never period-scoped.
+        'integrity' => AuditEngine::verifyChain(),
+    ];
+
+    // Producing a compliance report is itself an auditable act.
+    AuditEngine::record([
+        'type'        => 'report_generated',
+        'ctx'         => $ctx,
+        'subject_user_id' => (int) $user['id'],
+        'actor'       => ['id' => (int) $user['id'], 'role' => $user['role']],
+        'description' => "\"{$user['username']}\" generated a compliance report"
+                         . ($from || $to ? ' for ' . ($from ?? '…') . ' – ' . ($to ?? '…') : ''),
+        'metadata'    => ['from' => $from, 'to' => $to, 'events' => $result['totals']['events']],
+    ]);
+
+    Response::json($result);
 }
 
 // -------------------------------------------------------------- REFERENCE

@@ -16,7 +16,7 @@
 
 require_once __DIR__ . '/bootstrap.php';
 
-$user = Auth::requireRole('customer', 'admin');
+$user = Auth::requireRole('customer');
 $ctx = Context::fromRequest();
 $uid = (int) $user['id'];
 

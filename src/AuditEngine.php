@@ -18,6 +18,31 @@ require_once __DIR__ . '/Context.php';
 class AuditEngine
 {
     /**
+     * Tamper-evidence. Every audit row stores a SHA-256 HMAC (row_hash) that binds
+     * its own content to the previous row's hash (prev_hash), forming a chain. Edit,
+     * insert or delete any historical row and every hash after it stops matching —
+     * verifyChain() then reports the exact row where the trail was broken.
+     *
+     * The chain does not make the log impossible to edit for someone with raw
+     * database access; it makes such an edit DETECTABLE. The HMAC key lives in
+     * config (out of the database), so a DB-only attacker cannot forge a valid
+     * replacement hash.
+     */
+    public const GENESIS_HASH = '0000000000000000000000000000000000000000000000000000000000000000';
+
+    /**
+     * The immutable content covered by row_hash, in a fixed order. `id` and
+     * `audit_ref` are deliberately excluded: audit_ref is stamped by a follow-up
+     * UPDATE and is derived from the auto-increment id, neither of which is content.
+     */
+    private const HASH_FIELDS = [
+        'event_type', 'category', 'description', 'subject_user_id', 'actor_user_id',
+        'actor_role', 'risk_level', 'risk_score', 'transaction_id', 'amount',
+        'ip_address', 'browser', 'os', 'device_type', 'country', 'city', 'session_id',
+        'metadata', 'created_at',
+    ];
+
+    /**
      * Record one audit event and run fraud detection over it.
      *
      * @param array $input {
@@ -48,12 +73,47 @@ class AuditEngine
         $actorId = $actor['id'] ?? $subjectId;
         $actorRole = $actor['role'] ?? null;
 
+        // The exact values that will be stored — hashed here so the hash covers the
+        // row as persisted. created_at is fixed in PHP (not SQL NOW()) so the hashed
+        // timestamp equals the stored one exactly.
+        $now = date('Y-m-d H:i:s');
+        $metadataJson = json_encode($metadata);
+
+        $rowForHash = [
+            'event_type'      => $type,
+            'category'        => $scored['category'],
+            'description'     => $input['description'] ?? $scored['label'],
+            'subject_user_id' => $subjectId,
+            'actor_user_id'   => $actorId,
+            'actor_role'      => $actorRole,
+            'risk_level'      => $scored['level'],
+            'risk_score'      => $scored['score'],
+            'transaction_id'  => $input['transaction_id'] ?? null,
+            'amount'          => $amount,
+            'ip_address'      => $ctx->ip,
+            'browser'         => $ctx->browser,
+            'os'              => $ctx->os,
+            'device_type'     => $ctx->deviceType,
+            'country'         => $ctx->country,
+            'city'            => $ctx->city,
+            'session_id'      => $ctx->sessionId,
+            'metadata'        => $metadata,
+            'created_at'      => $now,
+        ];
+
+        // Link onto the head of the chain. `php -S` serves one request at a time and
+        // audit rows are never deleted, so a plain read of the latest hash is safe.
+        $prevHash = Database::value('SELECT row_hash FROM audit_events ORDER BY id DESC LIMIT 1')
+            ?? self::GENESIS_HASH;
+        $rowHash = self::hashRow($rowForHash, $prevHash);
+
         $eventId = Database::insert(
             "INSERT INTO audit_events
                 (audit_ref, event_type, category, description, subject_user_id, actor_user_id,
                  actor_role, risk_level, risk_score, transaction_id, amount, ip_address,
-                 browser, os, device_type, country, city, session_id, metadata, created_at)
-             VALUES ('PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+                 browser, os, device_type, country, city, session_id, metadata, created_at,
+                 prev_hash, row_hash)
+             VALUES ('PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 $type,
                 $scored['category'],
@@ -72,7 +132,10 @@ class AuditEngine
                 $ctx->country,
                 $ctx->city,
                 $ctx->sessionId,
-                json_encode($metadata),
+                $metadataJson,
+                $now,
+                $prevHash,
+                $rowHash,
             ]
         );
 
@@ -206,6 +269,134 @@ class AuditEngine
             'is_new_device'  => $hasHistory && !$existing,
             'is_new_country' => $hasHistory && !$seenCountry && $ctx->country !== $homeCountry,
             'home_country'   => $homeCountry,
+        ];
+    }
+
+    // -------------------------------------------------------- INTEGRITY (hash chain)
+
+    /**
+     * The keyed hash of one row's content, bound to the previous row's hash.
+     * Accepts either a freshly-built row (metadata as a PHP array, at record time)
+     * or a row read back from the database (metadata as a JSON string, at verify
+     * time) — canonicalisation makes both produce an identical digest.
+     */
+    public static function hashRow(array $row, string $prevHash): string
+    {
+        return hash_hmac('sha256', $prevHash . '|' . self::canonical($row), self::secret());
+    }
+
+    /**
+     * Serialise the hashed fields into one deterministic string. Values are
+     * normalised so the string is identical whether the data came straight from
+     * PHP or was round-tripped through MySQL (amount → fixed 2dp, JSON metadata →
+     * key-sorted, everything else → plain string, null → empty).
+     */
+    private static function canonical(array $row): string
+    {
+        $ordered = [];
+        foreach (self::HASH_FIELDS as $field) {
+            if ($field === 'amount') {
+                $amount = $row['amount'] ?? null;
+                $ordered[] = ($amount === null || $amount === '')
+                    ? '' : number_format((float) $amount, 2, '.', '');
+            } elseif ($field === 'metadata') {
+                $ordered[] = self::canonicalMeta($row['metadata'] ?? null);
+            } else {
+                $value = $row[$field] ?? null;
+                $ordered[] = $value === null ? '' : (string) $value;
+            }
+        }
+
+        return json_encode($ordered, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * Canonical form of the metadata column. MySQL's JSON type may reorder object
+     * keys, so we decode (if it arrived as a stored string), sort keys recursively,
+     * and re-encode — giving the same result on both the write and verify sides.
+     */
+    private static function canonicalMeta($metadata): string
+    {
+        if (is_string($metadata)) {
+            $metadata = json_decode($metadata, true);
+        }
+        if (!is_array($metadata)) {
+            $metadata = [];
+        }
+        self::ksortRecursive($metadata);
+
+        return json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    private static function ksortRecursive(array &$array): void
+    {
+        foreach ($array as &$value) {
+            if (is_array($value)) {
+                self::ksortRecursive($value);
+            }
+        }
+        unset($value);
+        ksort($array);
+    }
+
+    private static function secret(): string
+    {
+        static $key = null;
+        if ($key === null) {
+            $config = require __DIR__ . '/../config/config.php';
+            $key = (string) ($config['audit']['hmac_key'] ?? 'audit-chain-key');
+        }
+        return $key;
+    }
+
+    /**
+     * Walk the whole chain from the genesis hash and report the first place it
+     * breaks — a row whose content was altered (row_hash no longer matches) or a
+     * broken link (prev_hash no longer points at the real previous row, which is
+     * what an inserted or deleted row leaves behind).
+     *
+     * @return array{ok: bool, checked: int, first_broken: ?array, head_hash: string}
+     */
+    public static function verifyChain(): array
+    {
+        $stmt = Database::connect()->query('SELECT * FROM audit_events ORDER BY id ASC');
+
+        $expectedPrev = self::GENESIS_HASH;
+        $head = self::GENESIS_HASH;
+        $checked = 0;
+        $firstBroken = null;
+
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $storedPrev = (string) ($row['prev_hash'] ?? '');
+            $storedHash = (string) ($row['row_hash'] ?? '');
+            $recomputed = self::hashRow($row, $storedPrev);
+
+            $reason = null;
+            if ($storedPrev !== $expectedPrev) {
+                $reason = 'Broken chain link — a row was inserted or removed here.';
+            } elseif ($storedHash !== $recomputed) {
+                $reason = 'Contents altered — this row no longer matches its hash.';
+            }
+
+            if ($reason !== null) {
+                $firstBroken = [
+                    'audit_ref' => $row['audit_ref'],
+                    'id'        => (int) $row['id'],
+                    'reason'    => $reason,
+                ];
+                break;
+            }
+
+            $checked++;
+            $expectedPrev = $storedHash;
+            $head = $storedHash;
+        }
+
+        return [
+            'ok'           => $firstBroken === null,
+            'checked'      => $checked,
+            'first_broken' => $firstBroken,
+            'head_hash'    => $head,
         ];
     }
 }

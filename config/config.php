@@ -55,4 +55,18 @@ return [
         'api_key' => getenv('ANTHROPIC_API_KEY') ?: '',
         'model'   => getenv('ANTHROPIC_MODEL') ?: 'claude-opus-4-8',
     ],
+
+    /**
+     * Audit-log tamper-evidence.
+     *
+     * Every audit event is sealed with a keyed hash (HMAC-SHA256) chained to the
+     * one before it, so any later edit to the raw table is detectable. This key is
+     * the seal — keep it OUT of the database and treat it as a SECRET. Set it once:
+     * changing it invalidates the hashes already stored, so an existing log would
+     * then read as "tampered" until re-sealed. Override with AUDIT_HMAC_KEY in the
+     * environment rather than editing this file.
+     */
+    'audit' => [
+        'hmac_key' => getenv('AUDIT_HMAC_KEY') ?: 'uba-audit-chain-please-override-in-env',
+    ],
 ];

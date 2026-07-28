@@ -64,6 +64,11 @@ there are no pre-made users, so the first person to register bootstraps it.
 > `database/seed.php` is a reset tool: running it **wipes every user and all
 > data** back to empty. You only need it to start over, not on first install.
 
+> **Upgrading a database created before the audit hash chain?** Run the
+> tamper-evidence migration once to add the hash columns and seal your existing
+> events: `C:\xampp\php\php.exe database\migrations\002_audit_integrity.php`.
+> Fresh installs get this automatically from `schema.sql`.
+
 > Prefer Apache? Copy the project into `C:\xampp\htdocs\`, point Apache's
 > document root at the `public/` folder, and start Apache instead of step 4.
 

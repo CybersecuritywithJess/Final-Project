@@ -74,6 +74,8 @@ class RiskEngine
         'audit_viewed'          => ['Access Control',       'LOW',      'Audit log viewed'],
         'assistant_query'       => ['Access Control',       'LOW',      'AI assistant query'],
         'report_exported'       => ['Data Integrity',       'MEDIUM',   'Report exported'],
+        'report_generated'      => ['Data Integrity',       'LOW',      'Compliance report generated'],
+        'integrity_verified'    => ['Data Integrity',       'LOW',      'Audit log integrity checked'],
         'alert_status_changed'  => ['Data Integrity',       'MEDIUM',   'Alert status changed'],
         'alert_note_added'      => ['Data Integrity',       'LOW',      'Investigation note added'],
     ];

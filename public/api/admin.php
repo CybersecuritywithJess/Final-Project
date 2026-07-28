@@ -11,6 +11,7 @@
  *   GET    ?action=rules              the configurable risk thresholds
  *   PATCH  ?action=rule&key=          retune a threshold
  *   GET    ?action=health             system health
+ *   GET    ?action=integrity          verify the audit-log hash chain
  *   GET    ?action=analytics
  *
  * Everything here is high-risk by definition, so every route records an audit
@@ -52,6 +53,10 @@ switch (action()) {
 
     case 'health':
         health();
+        break;
+
+    case 'integrity':
+        verifyIntegrity($user, $ctx);
         break;
 
     case 'analytics':
@@ -371,6 +376,34 @@ function health(): never
               WHERE session_id IS NOT NULL AND created_at >= (NOW() - INTERVAL 30 MINUTE)'
         ),
     ]);
+}
+
+// --------------------------------------------------------------- INTEGRITY
+
+/**
+ * Recompute the audit-log hash chain and report whether it is intact. The check
+ * is itself an audit event — verifying the log is an accountable action too.
+ */
+function verifyIntegrity(array $admin, Context $ctx): never
+{
+    $result = AuditEngine::verifyChain();
+
+    AuditEngine::record([
+        'type'        => 'integrity_verified',
+        'ctx'         => $ctx,
+        'actor'       => ['id' => (int) $admin['id'], 'role' => $admin['role']],
+        'description' => $result['ok']
+            ? "Admin \"{$admin['username']}\" verified the audit log — {$result['checked']} events intact"
+            : "Admin \"{$admin['username']}\" ran an integrity check — TAMPERING DETECTED at "
+              . ($result['first_broken']['audit_ref'] ?? 'unknown'),
+        'metadata'    => [
+            'checked'      => $result['checked'],
+            'ok'           => $result['ok'],
+            'first_broken' => $result['first_broken'],
+        ],
+    ]);
+
+    Response::json($result);
 }
 
 // --------------------------------------------------------------- ANALYTICS

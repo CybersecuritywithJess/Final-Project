@@ -109,6 +109,11 @@ CREATE TABLE audit_events (
     metadata        JSON NULL,                             -- extra detail per event
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+    -- Tamper-evidence: row_hash seals this row's content and chains to the
+    -- previous row's hash (prev_hash). See AuditEngine::verifyChain().
+    prev_hash       CHAR(64) NULL,
+    row_hash        CHAR(64) NULL,
+
     FOREIGN KEY (subject_user_id) REFERENCES users(id)        ON DELETE SET NULL,
     FOREIGN KEY (actor_user_id)   REFERENCES users(id)        ON DELETE SET NULL,
     FOREIGN KEY (transaction_id)  REFERENCES transactions(id) ON DELETE SET NULL,

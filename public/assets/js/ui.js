@@ -108,15 +108,16 @@ const NAV = {
     { href: '/dashboard.html', label: 'Dashboard' },
     { href: '/alerts.html', label: 'Fraud alerts' },
     { href: '/audits.html', label: 'Audit log' },
+    { href: '/report.html', label: 'Reports' },
     { href: '/assistant.html', label: 'AI assistant' },
   ],
   admin: [
     { href: '/dashboard.html', label: 'Dashboard' },
     { href: '/alerts.html', label: 'Fraud alerts' },
     { href: '/audits.html', label: 'Audit log' },
+    { href: '/report.html', label: 'Reports' },
     { href: '/assistant.html', label: 'AI assistant' },
     { href: '/admin.html', label: 'Administration' },
-    { href: '/bank.html', label: 'Demo bank' },
   ],
 };
 
