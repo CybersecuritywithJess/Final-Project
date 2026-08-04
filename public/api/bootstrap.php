@@ -16,6 +16,7 @@ require_once __DIR__ . '/../../src/FraudEngine.php';
 require_once __DIR__ . '/../../src/AuditEngine.php';
 require_once __DIR__ . '/../../src/Auth.php';
 require_once __DIR__ . '/../../src/Bank.php';
+require_once __DIR__ . '/../../src/SecurityEngine.php';
 
 Auth::start();
 

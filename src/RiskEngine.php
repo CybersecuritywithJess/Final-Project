@@ -52,6 +52,8 @@ class RiskEngine
         'mfa_disabled'        => ['Security',               'HIGH',     'MFA disabled'],
         'new_device_login'    => ['Security',               'HIGH',     'Login from new device'],
         'new_location_login'  => ['Security',               'CRITICAL', 'Login from new country'],
+        'login_lockout'       => ['Security',               'HIGH',     'Account locked temporarily'],
+        'brute_force_locked'  => ['Security',               'CRITICAL', 'Account locked for security'],
 
         // -- Financial --------------------------------------------------------
         'deposit'             => ['Financial Transaction',  'LOW',      'Deposit'],
@@ -62,6 +64,7 @@ class RiskEngine
         'withdrawal'          => ['Financial Transaction',  'LOW',      'Withdrawal',          'withdrawal_amount'],
         'transfer'            => ['Financial Transaction',  'LOW',      'Money transfer',      'transfer_amount'],
         'transaction_failed'  => ['Financial Transaction',  'MEDIUM',   'Transaction failed'],
+        'limit_exceeded'      => ['Financial Transaction',  'HIGH',     'Daily limit exceeded'],
 
         // -- Administration / access control ----------------------------------
         'user_created_by_admin' => ['Administration',       'MEDIUM',   'Admin created user'],
@@ -71,6 +74,8 @@ class RiskEngine
         'risk_rule_changed'     => ['Administration',       'HIGH',     'Risk threshold changed'],
         'role_changed'          => ['Access Control',       'CRITICAL', 'User role changed'],
         'unauthorized_access'   => ['Access Control',       'CRITICAL', 'Unauthorized access attempt'],
+        'account_restricted'    => ['Access Control',       'CRITICAL', 'Account restricted from transacting'],
+        'account_reactivated'   => ['Administration',       'HIGH',     'Account reactivated by admin'],
         'audit_viewed'          => ['Access Control',       'LOW',      'Audit log viewed'],
         'assistant_query'       => ['Access Control',       'LOW',      'AI assistant query'],
         'report_exported'       => ['Data Integrity',       'MEDIUM',   'Report exported'],

@@ -48,6 +48,7 @@ const SYSTEM_EVENT_TYPES = [
     'risk_rule_changed', 'role_changed', 'audit_viewed', 'assistant_query',
     'report_exported', 'report_generated', 'integrity_verified',
     'alert_status_changed', 'alert_note_added',
+    'account_restricted', 'account_reactivated', 'brute_force_locked', 'login_lockout',
 ];
 
 /** Classify an audit row as 'bank' (customer activity) or 'system' (staff/engine). */

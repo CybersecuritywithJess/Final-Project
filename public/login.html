@@ -191,13 +191,48 @@
   selectRole('customer');
 
   const banner = document.getElementById('banner');
+  let countdownTimer = null;
+
   function showBanner(message, kind = 'error') {
     const styles = {
       error: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200',
       info:  'bg-amber-50 text-amber-800 ring-1 ring-amber-200',
+      lock:  'bg-rose-50 text-rose-800 ring-1 ring-rose-300 font-medium',
     };
+    clearInterval(countdownTimer);
     banner.className = `rounded-lg px-3.5 py-2.5 text-sm ${styles[kind]}`;
     banner.textContent = message;
+  }
+
+  /**
+   * A timed lockout counts itself down, so the customer can see when they may
+   * try again instead of guessing. The submit button stays disabled until then.
+   */
+  function showLockout(seconds) {
+    const button = document.getElementById('submit-btn');
+    clearInterval(countdownTimer);
+    banner.className = 'rounded-lg px-3.5 py-2.5 text-sm bg-rose-50 text-rose-800 ring-1 ring-rose-300';
+
+    const tick = () => {
+      if (seconds <= 0) {
+        clearInterval(countdownTimer);
+        showBanner('You can try signing in again now.', 'info');
+        button.disabled = false;
+        button.textContent = 'Log in';
+        return;
+      }
+      const m = Math.floor(seconds / 60);
+      const s = String(seconds % 60).padStart(2, '0');
+      banner.textContent =
+        'Access temporarily denied. Too many unsuccessful login attempts have been detected. '
+        + `Please try again in ${m}:${s}.`;
+      seconds--;
+    };
+
+    button.disabled = true;
+    button.textContent = 'Locked';
+    tick();
+    countdownTimer = setInterval(tick, 1000);
   }
 
   if (new URLSearchParams(location.search).has('expired')) {
@@ -229,6 +264,20 @@
       );
       window.location.href = roleHome(user.role);
     } catch (error) {
+      // A timed lockout counts down in place; a security lock is final until an
+      // administrator lifts it, so neither should re-enable the button.
+      if (error.code === 'TEMPORARILY_LOCKED') {
+        showLockout(Number(error.seconds_left) || 60);
+        return;
+      }
+
+      if (error.code === 'SECURITY_LOCKED') {
+        showBanner(error.message, 'lock');
+        button.disabled = true;
+        button.textContent = 'Account secured';
+        return;
+      }
+
       // On a role mismatch, flip the picker to the right role to help them retry.
       if (error.actual_role) selectRole(error.actual_role);
       showBanner(error.message);

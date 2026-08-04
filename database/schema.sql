@@ -27,9 +27,15 @@ CREATE TABLE users (
     auth_provider ENUM('password', 'google') NOT NULL DEFAULT 'password',
 
     role          ENUM('customer', 'auditor', 'admin') NOT NULL DEFAULT 'customer',
-    status        ENUM('active', 'locked', 'closed')   NOT NULL DEFAULT 'active',
+
+    -- 'locked' is a TIMED lockout (see locked_until); 'brute_force_locked' is the
+    -- permanent security lock an admin must clear. Neither touches the balance.
+    status        ENUM('active', 'locked', 'closed', 'brute_force_locked')
+                  NOT NULL DEFAULT 'active',
     failed_logins INT          NOT NULL DEFAULT 0,
     locked_at     DATETIME     NULL,
+    locked_until  DATETIME     NULL,   -- when a timed lockout expires
+    lockout_count INT          NOT NULL DEFAULT 0,  -- lockout cycles → brute-force escalation
     home_country  VARCHAR(60)  NOT NULL DEFAULT 'Kenya',
     mfa_enabled   TINYINT(1)   NOT NULL DEFAULT 0,
     last_login_at DATETIME     NULL,
@@ -45,9 +51,21 @@ CREATE TABLE accounts (
     type           ENUM('checking', 'savings') NOT NULL,
     balance        DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
     currency       VARCHAR(3)     NOT NULL DEFAULT 'KES',
+
+    -- Transaction restriction lives HERE, not on users.status: a restricted
+    -- customer must still be able to log in and see why they were stopped.
+    account_status ENUM('active', 'restricted') NOT NULL DEFAULT 'active',
+
+    -- The daily ceiling, a percentage of the balance (see the daily_limit_percent
+    -- rule). Recomputed from the live balance on every check and stored here so
+    -- reports and the admin view can read it without recalculating.
+    daily_limit           DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+    limit_violation_count INT            NOT NULL DEFAULT 0,
+
     created_at     DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_accounts_user (user_id)
+    INDEX idx_accounts_user   (user_id),
+    INDEX idx_accounts_status (account_status)
 ) ENGINE=InnoDB;
 
 CREATE TABLE transactions (
@@ -61,8 +79,12 @@ CREATE TABLE transactions (
     from_account_id INT NULL,
     to_account_id   INT NULL,
     counterparty    VARCHAR(120)   NULL,                  -- receiver / biller
-    status          ENUM('completed', 'failed', 'pending', 'flagged')
+
+    -- 'failed'   — could not complete (e.g. insufficient funds)
+    -- 'declined' — refused by a security control (e.g. over the daily limit)
+    status          ENUM('completed', 'failed', 'pending', 'flagged', 'declined')
                     NOT NULL DEFAULT 'completed',
+    failure_reason  VARCHAR(255)   NULL,                  -- why it failed or was declined
     description     VARCHAR(255)   NULL,
     ip_address      VARCHAR(45)    NULL,
     created_at      DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -114,9 +136,12 @@ CREATE TABLE audit_events (
     prev_hash       CHAR(64) NULL,
     row_hash        CHAR(64) NULL,
 
-    FOREIGN KEY (subject_user_id) REFERENCES users(id)        ON DELETE SET NULL,
-    FOREIGN KEY (actor_user_id)   REFERENCES users(id)        ON DELETE SET NULL,
-    FOREIGN KEY (transaction_id)  REFERENCES transactions(id) ON DELETE SET NULL,
+    -- Deliberately NOT foreign keys. These columns are sealed by the hash chain,
+    -- so an ON DELETE SET NULL would let an ordinary admin deleting a user
+    -- rewrite history underneath the seal and make the log read as tampered.
+    -- An audit row states what happened; it must not change afterwards. The
+    -- identity is preserved in the description and metadata, and every query
+    -- that joins users to this table uses a LEFT JOIN.
 
     INDEX idx_audit_created  (created_at),
     INDEX idx_audit_subject  (subject_user_id),
@@ -181,6 +206,53 @@ CREATE TABLE devices (
     UNIQUE KEY uq_user_device (user_id, fingerprint)
 ) ENGINE=InnoDB;
 
+-- Security flags raised by the security controls (transaction limits, brute
+-- force). Distinct from `alerts`, which is the auditor's fraud-investigation
+-- queue: a flag is the record of a control that FIRED and the admin action it
+-- needs, so the Security dashboard has one place to read from.
+CREATE TABLE security_flags (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    flag_ref       VARCHAR(20) NOT NULL UNIQUE,           -- SEC-000123
+    user_id        INT NULL,
+    account_id     INT NULL,                              -- NULL for user-level flags
+    flag_type      VARCHAR(50)  NOT NULL,                 -- DAILY_LIMIT_VIOLATION, BRUTE_FORCE_ATTACK, ...
+    severity       ENUM('LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NOT NULL,
+    description    VARCHAR(500) NOT NULL,
+    status         ENUM('open', 'resolved') NOT NULL DEFAULT 'open',
+    audit_event_id INT NULL,                              -- the audit row that recorded it
+    created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    resolved_at    DATETIME NULL,
+    resolved_by    INT NULL,
+
+    FOREIGN KEY (user_id)        REFERENCES users(id)        ON DELETE SET NULL,
+    FOREIGN KEY (account_id)     REFERENCES accounts(id)     ON DELETE SET NULL,
+    FOREIGN KEY (audit_event_id) REFERENCES audit_events(id) ON DELETE SET NULL,
+    FOREIGN KEY (resolved_by)    REFERENCES users(id)        ON DELETE SET NULL,
+
+    INDEX idx_flags_status (status),
+    INDEX idx_flags_type   (flag_type),
+    INDEX idx_flags_user   (user_id)
+) ENGINE=InnoDB;
+
+-- Every login attempt, successful or not. The audit log records these too; this
+-- table is the focused, queryable history the brute-force controls and the
+-- Security dashboard read.
+CREATE TABLE login_attempts (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT NULL,                                  -- NULL when the username is unknown
+    username   VARCHAR(150) NULL,                         -- what was actually typed
+    ip_address VARCHAR(45)  NULL,
+    user_agent VARCHAR(255) NULL,
+    status     ENUM('SUCCESS', 'FAILED') NOT NULL,
+    reason     VARCHAR(100) NULL,                         -- bad_password, no_such_user, locked_out, ...
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_attempts_user    (user_id),
+    INDEX idx_attempts_created (created_at),
+    INDEX idx_attempts_ip      (ip_address)
+) ENGINE=InnoDB;
+
 -- Admin-configurable thresholds. Every fraud rule reads its numbers from here
 -- instead of hard-coding them, so an admin can retune detection at runtime.
 CREATE TABLE risk_rules (
@@ -212,4 +284,12 @@ INSERT INTO risk_rules (rule_key, label, value, unit, description) VALUES
 ('daily_transfer_limit',          'Daily transfer limit',              1000000, 'KES',
  'Total transfers per customer per day before an alert is raised.'),
 ('session_timeout_minutes',       'Session timeout',                   30,      'minutes',
- 'How long a login session stays valid before it expires.');
+ 'How long a login session stays valid before it expires.'),
+('daily_limit_percent',           'Daily limit (% of balance)',        30,      '%',
+ 'Share of the account balance a customer may transact in one day.'),
+('limit_violations_before_restriction', 'Limit violations before restriction', 3, 'attempts',
+ 'Declined over-limit attempts before the account is restricted from transacting.'),
+('login_lockout_minutes',         'Login lockout duration',            2,       'minutes',
+ 'How long an account stays locked after too many failed logins.'),
+('post_lockout_failures',         'Failures after a lockout',          3,       'attempts',
+ 'Once an account has been locked out before, this many further failures lock it permanently.');

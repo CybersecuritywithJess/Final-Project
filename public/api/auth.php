@@ -12,6 +12,7 @@
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/../../src/GoogleAuth.php';
+require_once __DIR__ . '/../../src/SecurityEngine.php';
 
 $ctx = Context::fromRequest();
 
@@ -152,6 +153,7 @@ function login(Context $ctx): never
 
     // Unknown username: still audited, but there is no account to attribute it to.
     if (!$user) {
+        SecurityEngine::recordLoginAttempt(null, $username, $ctx, 'FAILED', 'no_such_user');
         AuditEngine::record([
             'type'        => 'login_failed',
             'ctx'         => $ctx,
@@ -161,19 +163,54 @@ function login(Context $ctx): never
         Response::error('Invalid username or password', 401);
     }
 
-    if ($user['status'] === 'locked') {
+    // Where the login controls currently stand. An expired timed lock is cleared
+    // inside here, so the account gets its chance back without anyone's help.
+    $lock = SecurityEngine::checkLockout($user);
+
+    if ($lock['locked']) {
+        SecurityEngine::recordLoginAttempt(
+            (int) $user['id'],
+            $username,
+            $ctx,
+            'FAILED',
+            $lock['permanent'] ? 'security_locked' : 'locked_out'
+        );
+
         AuditEngine::record([
             'type'            => 'login_failed',
             'ctx'             => $ctx,
             'subject_user_id' => (int) $user['id'],
             'description'     => "Login attempt on locked account \"{$user['username']}\"",
-            'metadata'        => ['reason' => 'account_locked'],
+            'metadata'        => [
+                'reason'       => $lock['permanent'] ? 'security_locked' : 'temporarily_locked',
+                'seconds_left' => $lock['seconds_left'],
+            ],
             'signals'         => ['failed_logins' => (int) $user['failed_logins']],
         ]);
-        Response::error('This account is locked. Contact an administrator.', 403);
+
+        if ($lock['permanent']) {
+            Response::error(
+                'Your account has been secured due to repeated unsuccessful login attempts. '
+                . 'Please visit your nearest bank branch for verification.',
+                403,
+                ['code' => 'SECURITY_LOCKED']
+            );
+        }
+
+        $minutes = (int) ceil($lock['seconds_left'] / 60);
+        Response::error(
+            'Too many unsuccessful login attempts have been detected. Please try again in '
+            . ($minutes <= 1 ? 'a moment' : "$minutes minutes") . '.',
+            403,
+            ['code' => 'TEMPORARILY_LOCKED', 'seconds_left' => $lock['seconds_left']]
+        );
     }
 
+    // checkLockout may have just cleared an expired lock — work from fresh state.
+    $user = Database::one('SELECT * FROM users WHERE id = ?', [$user['id']]);
+
     if ($user['status'] === 'closed') {
+        SecurityEngine::recordLoginAttempt((int) $user['id'], $username, $ctx, 'FAILED', 'account_closed');
         Response::error('This account is closed.', 403);
     }
 
@@ -186,25 +223,33 @@ function login(Context $ctx): never
     // --- wrong password
     if (!Auth::verify($password, $user['password_hash'])) {
         $attempts = (int) $user['failed_logins'] + 1;
-        $max = (int) RiskEngine::rule('max_failed_logins');
+
+        // An account that has been locked out before is held to a shorter leash.
+        $max = SecurityEngine::failureThreshold($user);
+        $warned = SecurityEngine::hasBeenWarned($user);
 
         Database::run('UPDATE users SET failed_logins = ? WHERE id = ?', [$attempts, $user['id']]);
+        SecurityEngine::recordLoginAttempt((int) $user['id'], $username, $ctx, 'FAILED', 'bad_password');
 
         AuditEngine::record([
             'type'            => 'login_failed',
             'ctx'             => $ctx,
             'subject_user_id' => (int) $user['id'],
-            'description'     => "Failed login for \"{$user['username']}\" (attempt $attempts of $max)",
-            'metadata'        => ['reason' => 'bad_password', 'attempt' => $attempts],
+            'description'     => "Failed login for \"{$user['username']}\" (attempt $attempts of $max"
+                                 . ($warned ? ', after a previous lockout' : '') . ')',
+            'metadata'        => [
+                'reason'  => 'bad_password',
+                'attempt' => $attempts,
+                'stage'   => $warned ? 'post_lockout' : 'initial',
+            ],
             'signals'         => ['failed_logins' => $attempts],
         ]);
 
         // The brute-force rule has already raised its alert; now enforce the lock.
+        // A first offence buys a couple of minutes and a warning; failing again
+        // after that warning earns a lock only an administrator can lift.
         if ($attempts >= $max) {
-            Database::run(
-                "UPDATE users SET status = 'locked', locked_at = NOW() WHERE id = ?",
-                [$user['id']]
-            );
+            $lock = SecurityEngine::lockUser($user, $ctx, $attempts);
 
             AuditEngine::record([
                 'type'            => 'account_locked',
@@ -212,10 +257,47 @@ function login(Context $ctx): never
                 'subject_user_id' => (int) $user['id'],
                 'description'     => "Account \"{$user['username']}\" locked automatically after " .
                                      "$attempts consecutive failed logins",
-                'metadata'        => ['failed_attempts' => $attempts, 'threshold' => $max],
+                'metadata'        => [
+                    'failed_attempts' => $attempts,
+                    'threshold'       => $max,
+                    'permanent'       => $lock['permanent'],
+                    'lockout_cycle'   => $lock['cycle'],
+                ],
             ]);
 
-            Response::error('Account locked after too many failed attempts.', 403);
+            if ($lock['permanent']) {
+                Response::error(
+                    'Your account has been secured due to repeated unsuccessful login attempts. '
+                    . 'Please visit your nearest bank branch for verification.',
+                    403,
+                    ['code' => 'SECURITY_LOCKED']
+                );
+            }
+
+            Response::error(
+                'Too many unsuccessful login attempts have been detected. Your account has been '
+                . "temporarily locked. Please try again after {$lock['minutes']} minutes.",
+                403,
+                [
+                    'code'         => 'TEMPORARILY_LOCKED',
+                    'seconds_left' => $lock['minutes'] * 60,
+                    // What it costs them to keep going once the lock lifts.
+                    'next_threshold' => (int) RiskEngine::rule('post_lockout_failures'),
+                ]
+            );
+        }
+
+        // Once an account has been warned, tell it how little room is left —
+        // the next lock is permanent, so a silent countdown would be unfair.
+        if ($warned) {
+            $left = $max - $attempts;
+            Response::error(
+                'Invalid username or password. ' . ($left === 1
+                    ? 'One more failed attempt will secure your account and require branch verification.'
+                    : "$left more failed attempts will secure your account."),
+                401,
+                ['code' => 'POST_LOCKOUT_WARNING', 'attempts_left' => $left]
+            );
         }
 
         Response::error('Invalid username or password', 401);
@@ -244,13 +326,19 @@ function login(Context $ctx): never
     // --- success
     $signals = AuditEngine::trackDevice((int) $user['id'], $ctx, $user['home_country']);
 
+    // A correct password clears the failed-attempt counter — it proves the person
+    // knows the password. It deliberately does NOT clear lockout_count: having
+    // been locked out is a security warning about this account, and one correct
+    // password should not erase it. Only an administrator lifts that.
     Database::run(
-        'UPDATE users SET failed_logins = 0, last_login_at = NOW() WHERE id = ?',
+        'UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = NOW()
+          WHERE id = ?',
         [$user['id']]
     );
 
     Auth::login($user);
     $ctx->sessionId = session_id();
+    SecurityEngine::recordLoginAttempt((int) $user['id'], $username, $ctx, 'SUCCESS');
 
     AuditEngine::record([
         'type'            => 'login_success',
@@ -383,22 +471,53 @@ function googleSignIn(Context $ctx): never
         }
     }
 
-    if ($user['status'] === 'locked') {
-        Response::error('This account is locked. Contact an administrator.', 403);
+    // The same login controls apply however you arrive — Google verifies who you
+    // are, not whether this account is currently allowed in.
+    $lock = SecurityEngine::checkLockout($user);
+    if ($lock['locked']) {
+        SecurityEngine::recordLoginAttempt(
+            (int) $user['id'],
+            $user['username'],
+            $ctx,
+            'FAILED',
+            $lock['permanent'] ? 'security_locked' : 'locked_out'
+        );
+
+        if ($lock['permanent']) {
+            Response::error(
+                'Your account has been secured due to repeated unsuccessful login attempts. '
+                . 'Please visit your nearest bank branch for verification.',
+                403,
+                ['code' => 'SECURITY_LOCKED']
+            );
+        }
+
+        $minutes = (int) ceil($lock['seconds_left'] / 60);
+        Response::error(
+            'Too many unsuccessful login attempts have been detected. Please try again in '
+            . ($minutes <= 1 ? 'a moment' : "$minutes minutes") . '.',
+            403,
+            ['code' => 'TEMPORARILY_LOCKED', 'seconds_left' => $lock['seconds_left']]
+        );
     }
+
     if ($user['status'] === 'closed') {
         Response::error('This account is closed.', 403);
     }
 
     // From here it is an ordinary successful login.
     $signals = AuditEngine::trackDevice((int) $user['id'], $ctx, $user['home_country']);
+    // As with a password login: the attempt counter clears, the lockout history
+    // does not.
     Database::run(
-        'UPDATE users SET failed_logins = 0, last_login_at = NOW() WHERE id = ?',
+        'UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = NOW()
+          WHERE id = ?',
         [$user['id']]
     );
 
     Auth::login($user);
     $ctx->sessionId = session_id();
+    SecurityEngine::recordLoginAttempt((int) $user['id'], $user['username'], $ctx, 'SUCCESS');
 
     if (!$isNewUser) {
         AuditEngine::record([

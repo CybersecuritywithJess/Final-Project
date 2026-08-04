@@ -15,6 +15,7 @@
  */
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/../../src/SecurityEngine.php';
 
 $user = Auth::requireRole('customer');
 $ctx = Context::fromRequest();
@@ -53,11 +54,171 @@ switch (action()) {
         Response::error('Unknown action', 404);
 }
 
+// ------------------------------------------------------- SECURITY CONTROLS
+
+/**
+ * The gate every outbound transaction passes through.
+ *
+ * Three checks, in the order that gives the customer the most useful answer:
+ * an account that has been restricted, an account that has never been funded,
+ * and finally the daily limit. Each refusal is recorded — a declined attempt is
+ * evidence, and three of them are a pattern worth acting on.
+ *
+ * Returns normally when the transaction may proceed; otherwise it responds and
+ * exits.
+ */
+function guardTransaction(array $user, array $account, Context $ctx, float $amount, string $type): void
+{
+    // 1. Already restricted — nothing moves until an administrator reviews it.
+    if (($account['account_status'] ?? 'active') === 'restricted') {
+        Response::error(
+            'Your account is temporarily closed. Please visit your nearest branch for verification '
+            . 'and account reactivation.',
+            403,
+            ['code' => 'ACCOUNT_RESTRICTED']
+        );
+    }
+
+    // 2. A brand-new account has to be funded before it can be spent from.
+    if (!Bank::hasEverDeposited((int) $account['id'])) {
+        Response::error(
+            'Your account has insufficient funds. Please make an initial deposit before '
+            . 'performing transactions.',
+            400,
+            ['code' => 'NO_INITIAL_DEPOSIT']
+        );
+    }
+
+    // 3. The daily ceiling, recalculated from the balance as it stands right now.
+    $check = Bank::limitCheck($account, $amount);
+    if (!$check['allowed']) {
+        declineOverLimit($user, $account, $ctx, $amount, $type, $check);
+    }
+}
+
+/**
+ * Record an over-limit attempt and refuse it.
+ *
+ * The refusal leaves a full trail: a declined transaction row carrying the
+ * reason, an audit event, and a security flag. Enough repeats and the account
+ * itself is restricted.
+ */
+function declineOverLimit(
+    array $user,
+    array $account,
+    Context $ctx,
+    float $amount,
+    string $type,
+    array $check
+): never {
+    $reason = 'Exceeded daily transaction limit';
+
+    $txn = Bank::createTransaction([
+        'user_id'         => (int) $user['id'],
+        'type'            => $type,
+        'amount'          => $amount,
+        'from_account_id' => (int) $account['id'],
+        'status'          => 'declined',
+        'failure_reason'  => $reason,
+        'description'     => 'Declined — over daily limit',
+        'ip'              => $ctx->ip,
+    ]);
+
+    $violations = (int) $account['limit_violation_count'] + 1;
+    $allowed = max(1, (int) RiskEngine::rule('limit_violations_before_restriction'));
+
+    Database::run(
+        'UPDATE accounts SET limit_violation_count = ? WHERE id = ?',
+        [$violations, $account['id']]
+    );
+
+    $money = fn(float $n): string => 'KES ' . number_format($n, 2);
+
+    SecurityEngine::flag([
+        'flag_type'   => SecurityEngine::FLAG_LIMIT_VIOLATION,
+        'severity'    => 'HIGH',
+        'user_id'     => (int) $user['id'],
+        'account_id'  => (int) $account['id'],
+        'event_type'  => 'limit_exceeded',
+        'ctx'         => $ctx,
+        'amount'      => $amount,
+        'actor'       => ['id' => (int) $user['id'], 'role' => $user['role']],
+        'description' => "\"{$user['username']}\" attempted a $type of {$money($amount)} on account "
+                         . "{$account['account_number']}, which would take today's total to "
+                         . $money($check['used'] + $amount) . ' against a daily limit of '
+                         . $money($check['limit']) . " (violation $violations of $allowed).",
+        'metadata'    => [
+            'account_number'  => $account['account_number'],
+            'transaction_ref' => $txn['reference'],
+            'daily_limit'     => $check['limit'],
+            'used_today'      => $check['used'],
+            'remaining'       => $check['remaining'],
+            'requested'       => $amount,
+            'violation_count' => $violations,
+            'violations_allowed' => $allowed,
+        ],
+    ]);
+
+    // Enough repeat attempts to stop treating it as a mistake.
+    $restricted = false;
+    if ($violations >= $allowed) {
+        SecurityEngine::restrictAccount(
+            $account + ['limit_violation_count' => $violations - 1],
+            $user,
+            $ctx,
+            "$violations attempts to exceed the daily transaction limit"
+        );
+        $restricted = true;
+    }
+
+    Response::error(
+        'You are unable to complete this transaction because it exceeds your daily transaction limit.',
+        403,
+        [
+            'code'        => 'LIMIT_EXCEEDED',
+            'daily_limit' => $check['limit'],
+            'used_today'  => $check['used'],
+            'remaining'   => $check['remaining'],
+            'requested'   => $amount,
+            'violations'  => $violations,
+            'violations_allowed' => $allowed,
+            'restricted'  => $restricted,
+            'transaction' => $txn,
+        ]
+    );
+}
+
+/** Refuse any activity at all on a restricted account (deposits included). */
+function requireActiveAccount(array $account): void
+{
+    if (($account['account_status'] ?? 'active') === 'restricted') {
+        Response::error(
+            'Your account is temporarily closed. Please visit your nearest branch for verification '
+            . 'and account reactivation.',
+            403,
+            ['code' => 'ACCOUNT_RESTRICTED']
+        );
+    }
+}
+
 // ---------------------------------------------------------------- OVERVIEW
 
 function accounts(array $user, Context $ctx): never
 {
     $accounts = Bank::accountsOf((int) $user['id']);
+
+    // Attach the live limit picture to each account so the customer always sees
+    // the same numbers the guard will enforce.
+    foreach ($accounts['all'] as &$account) {
+        $limit = Bank::dailyLimit($account);
+        $used = Bank::usedToday((int) $account['id']);
+
+        $account['daily_limit']     = $limit;
+        $account['used_today']      = $used;
+        $account['remaining_today'] = max(0, round($limit - $used, 2));
+        $account['funded']          = Bank::hasEverDeposited((int) $account['id']);
+    }
+    unset($account);
 
     AuditEngine::record([
         'type'            => 'balance_inquiry',
@@ -67,7 +228,10 @@ function accounts(array $user, Context $ctx): never
         'description'     => "\"{$user['username']}\" viewed their account balances",
     ]);
 
-    Response::json(['accounts' => $accounts['all']]);
+    Response::json([
+        'accounts' => $accounts['all'],
+        'limit_percent' => (float) RiskEngine::rule('daily_limit_percent'),
+    ]);
 }
 
 function transactions(int $uid): never
@@ -99,10 +263,18 @@ function deposit(array $user, Context $ctx): never
         Response::error('Account not found', 404);
     }
 
+    // A restricted account is frozen for everything, deposits included, until an
+    // administrator reviews it.
+    requireActiveAccount($account);
+
     $isSavings = $type === 'savings';
     $before = (float) $account['balance'];
 
     Bank::adjustBalance((int) $account['id'], $amount);
+
+    // The ceiling moves with the balance, so refresh it against the new one.
+    $account['balance'] = $before + $amount;
+    $newLimit = Bank::dailyLimit($account);
 
     $txn = Bank::createTransaction([
         'user_id'       => (int) $user['id'],
@@ -125,11 +297,16 @@ function deposit(array $user, Context $ctx): never
         'metadata'        => [
             'balance_before' => $before,
             'balance_after'  => $before + $amount,
+            'daily_limit'    => $newLimit,
             'reference'      => $txn['reference'],
         ],
     ]);
 
-    Response::json(['transaction' => $txn, 'balance' => $before + $amount], 201);
+    Response::json([
+        'transaction' => $txn,
+        'balance'     => $before + $amount,
+        'daily_limit' => $newLimit,
+    ], 201);
 }
 
 // -------------------------------------------------------------- WITHDRAWAL
@@ -148,6 +325,9 @@ function withdraw(array $user, Context $ctx): never
         Response::error('Account not found', 404);
     }
 
+    // Restricted / unfunded / over-limit are all refused here.
+    guardTransaction($user, $account, $ctx, $amount, 'withdrawal');
+
     $before = (float) $account['balance'];
 
     // A declined withdrawal is still an audit event — failed attempts matter.
@@ -158,6 +338,7 @@ function withdraw(array $user, Context $ctx): never
             'amount'          => $amount,
             'from_account_id' => (int) $account['id'],
             'status'          => 'failed',
+            'failure_reason'  => 'Insufficient funds',
             'description'     => 'Insufficient funds',
             'ip'              => $ctx->ip,
         ]);
@@ -244,6 +425,8 @@ function transfer(array $user, Context $ctx): never
         Response::error('You cannot transfer to your own checking account');
     }
 
+    guardTransaction($user, $from, $ctx, $amount, 'transfer');
+
     $before = (float) $from['balance'];
 
     if ($before < $amount) {
@@ -254,6 +437,7 @@ function transfer(array $user, Context $ctx): never
             'from_account_id' => (int) $from['id'],
             'to_account_id'   => (int) $to['id'],
             'status'          => 'failed',
+            'failure_reason'  => 'Insufficient funds',
             'description'     => 'Insufficient funds',
             'ip'              => $ctx->ip,
         ]);
@@ -343,6 +527,9 @@ function pay(array $user, Context $ctx): never
     $biller = trim((string) ($body['biller'] ?? '')) ?: ($kind === 'airtime' ? 'Airtime top-up' : 'Biller');
 
     $from = Bank::accountsOf((int) $user['id'])['checking'];
+
+    guardTransaction($user, $from, $ctx, $amount, $kind);
+
     $before = (float) $from['balance'];
 
     if ($before < $amount) {

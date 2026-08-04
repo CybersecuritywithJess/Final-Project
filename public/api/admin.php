@@ -12,6 +12,9 @@
  *   PATCH  ?action=rule&key=          retune a threshold
  *   GET    ?action=health             system health
  *   GET    ?action=integrity          verify the audit-log hash chain
+ *   GET    ?action=security           restricted accounts, locked logins, open flags
+ *   POST   ?action=activate-account&id=  lift a transaction restriction
+ *   POST   ?action=unlock-user&id=       restore login access
  *   GET    ?action=analytics
  *
  * Everything here is high-risk by definition, so every route records an audit
@@ -57,6 +60,20 @@ switch (action()) {
 
     case 'integrity':
         verifyIntegrity($user, $ctx);
+        break;
+
+    case 'security':
+        security();
+        break;
+
+    case 'activate-account':
+        requireMethod('POST', 'PATCH');
+        activateAccount($user, $ctx);
+        break;
+
+    case 'unlock-user':
+        requireMethod('POST', 'PATCH');
+        unlockUser($user, $ctx);
         break;
 
     case 'analytics':
@@ -160,7 +177,7 @@ function updateUser(array $admin, Context $ctx): never
         $changes['home_country'] = trim($body['home_country']);
     }
     if (!empty($body['status']) && $body['status'] !== $user['status']) {
-        if (!in_array($body['status'], ['active', 'locked', 'closed'], true)) {
+        if (!in_array($body['status'], ['active', 'locked', 'closed', 'brute_force_locked'], true)) {
             Response::error('Unknown status');
         }
         $changes['status'] = $body['status'];
@@ -178,9 +195,11 @@ function updateUser(array $admin, Context $ctx): never
 
     $sets = implode(', ', array_map(fn($c) => "$c = :$c", array_keys($changes)));
 
-    // Clearing a lock must also reset the counter, or the user re-locks instantly.
+    // Clearing a lock must also reset the counters, or the user re-locks instantly
+    // — including the lockout history, which would otherwise escalate them
+    // straight to a permanent security lock on their next mistake.
     if (($changes['status'] ?? null) === 'active') {
-        $sets .= ', failed_logins = 0, locked_at = NULL';
+        $sets .= ', failed_logins = 0, lockout_count = 0, locked_at = NULL, locked_until = NULL';
     }
 
     Database::run("UPDATE users SET $sets WHERE id = :id", $changes + ['id' => $id]);
@@ -375,6 +394,114 @@ function health(): never
             'SELECT COUNT(DISTINCT session_id) FROM audit_events
               WHERE session_id IS NOT NULL AND created_at >= (NOW() - INTERVAL 30 MINUTE)'
         ),
+    ]);
+}
+
+// ---------------------------------------------------------------- SECURITY
+
+/**
+ * Everything the Security desk needs in one call: accounts the limit controls
+ * have stopped, logins the brute-force controls have shut, and the flags behind
+ * both.
+ */
+function security(): never
+{
+    Response::json([
+        // Accounts frozen by repeated limit violations.
+        'restricted_accounts' => Database::all("
+            SELECT a.id, a.account_number, a.type, a.balance, a.daily_limit,
+                   a.limit_violation_count, a.account_status,
+                   u.id AS user_id, u.username, u.full_name, u.email
+              FROM accounts a
+              JOIN users u ON u.id = a.user_id
+             WHERE a.account_status = 'restricted'
+             ORDER BY a.limit_violation_count DESC, a.id
+        "),
+
+        // Logins shut by the brute-force controls — timed or permanent.
+        'locked_users' => Database::all("
+            SELECT id, username, full_name, email, role, status,
+                   failed_logins, lockout_count, locked_at, locked_until,
+                   (locked_until IS NOT NULL AND locked_until > NOW()) AS lock_active
+              FROM users
+             WHERE status IN ('locked', 'brute_force_locked')
+             ORDER BY FIELD(status, 'brute_force_locked', 'locked'), locked_at DESC
+        "),
+
+        // Active accounts carrying a lockout warning. They can log in, but are
+        // held to the shorter Stage 2 threshold until an admin clears it — so an
+        // admin has to be able to see them, or the warning could never be lifted.
+        'warned_users' => Database::all("
+            SELECT id, username, full_name, email, role, failed_logins, lockout_count, locked_at
+              FROM users
+             WHERE status = 'active' AND lockout_count > 0
+             ORDER BY locked_at DESC
+        "),
+
+        'open_flags' => Database::all("
+            SELECT f.*, u.username, u.full_name, a.account_number
+              FROM security_flags f
+              LEFT JOIN users u    ON u.id = f.user_id
+              LEFT JOIN accounts a ON a.id = f.account_id
+             WHERE f.status = 'open'
+             ORDER BY FIELD(f.severity, 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'), f.created_at DESC
+             LIMIT 100
+        "),
+
+        'recent_attempts' => SecurityEngine::recentAttempts(25),
+
+        'thresholds' => [
+            'daily_limit_percent'   => (float) RiskEngine::rule('daily_limit_percent'),
+            'violations_allowed'    => (int) RiskEngine::rule('limit_violations_before_restriction'),
+            'max_failed_logins'     => (int) RiskEngine::rule('max_failed_logins'),
+            'lockout_minutes'       => (int) RiskEngine::rule('login_lockout_minutes'),
+            'post_lockout_failures' => (int) RiskEngine::rule('post_lockout_failures'),
+        ],
+    ]);
+}
+
+/** Lift a transaction restriction. The balance was never touched; this restores access. */
+function activateAccount(array $admin, Context $ctx): never
+{
+    $id = (int) ($_GET['id'] ?? 0);
+    $account = Database::one('SELECT * FROM accounts WHERE id = ?', [$id]);
+
+    if (!$account) {
+        Response::error('Account not found', 404);
+    }
+    if ($account['account_status'] !== 'restricted') {
+        Response::json(['message' => 'That account is already active']);
+    }
+
+    SecurityEngine::activateAccount($account, $admin, $ctx);
+
+    Response::json(['message' => "Account {$account['account_number']} reactivated"]);
+}
+
+/** Restore login access to a locked or security-locked account. */
+function unlockUser(array $admin, Context $ctx): never
+{
+    $id = (int) ($_GET['id'] ?? 0);
+    $user = Database::one('SELECT * FROM users WHERE id = ?', [$id]);
+
+    if (!$user) {
+        Response::error('User not found', 404);
+    }
+
+    $locked = in_array($user['status'], ['locked', 'brute_force_locked'], true);
+    $warned = (int) $user['lockout_count'] > 0;
+
+    // Nothing to do only when the account is neither locked nor carrying a warning.
+    if (!$locked && !$warned) {
+        Response::json(['message' => 'That account is not locked']);
+    }
+
+    SecurityEngine::unlockUser($user, $admin, $ctx);
+
+    Response::json([
+        'message' => $locked
+            ? "Login access restored for \"{$user['username']}\""
+            : "Lockout warning cleared for \"{$user['username']}\"",
     ]);
 }
 
